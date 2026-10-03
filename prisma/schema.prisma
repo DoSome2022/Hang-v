@@ -1,0 +1,145 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 區域：每個區域本質上是一個可做申請動作的網頁
+model Region {
+  id         String      @id @default(cuid())
+  name       String
+  slug       String      @unique
+  cases      Case[]
+  solutions  Solution[]
+  painPoints PainPoint[]
+  intros     Intro[]
+  createdAt  DateTime    @default(now()) @map("created_at")
+  updatedAt  DateTime    @updatedAt @map("updated_at")
+
+  @@map("regions")
+}
+
+// 顧問公司自我介紹（admin 後台建立）
+model Intro {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  regionId  String   @map("region_id")
+  region    Region   @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([regionId])
+  @@map("intros")
+}
+
+// 痛點（核心，admin 後台建立）
+model PainPoint {
+  id          String             @id @default(cuid())
+  title       String
+  description String?
+  regionId    String             @map("region_id")
+  region      Region             @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  cases       CasePainPoint[]
+  solutions   SolutionPainPoint[]
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  @@index([regionId])
+  @@map("pain_points")
+}
+
+// 案例（公開，card 列表）
+model Case {
+  id           String            @id @default(cuid())
+  title        String
+  content      String
+  regionId     String            @map("region_id")
+  region       Region            @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  painPoints   CasePainPoint[]
+  solutions    CaseSolution[]
+  applications Application[]
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+
+  @@index([regionId])
+  @@map("cases")
+}
+
+// 方案（admin 後台建立，案例 post 內顯示所用方案）
+model Solution {
+  id          String               @id @default(cuid())
+  title       String
+  description String?
+  regionId    String               @map("region_id")
+  region      Region               @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  cases       CaseSolution[]
+  painPoints  SolutionPainPoint[]
+  createdAt   DateTime             @default(now()) @map("created_at")
+  updatedAt   DateTime             @updatedAt @map("updated_at")
+
+  @@index([regionId])
+  @@map("solutions")
+}
+
+// 申請：記錄來源 Case + 痛點快照（提交當下的勾選結果，不依賴即時關聯）
+model Application {
+  id                 String            @id @default(cuid())
+  applicantName      String            @map("applicant_name")
+  applicantContact   String            @map("applicant_contact")
+  note               String?
+  status             ApplicationStatus @default(pending)
+  caseId             String            @map("case_id")
+  case               Case              @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  painPointsSnapshot Json              @map("pain_points_snapshot") // [{ painPointId, title }]
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+
+  @@index([caseId])
+  @@index([status])
+  @@map("applications")
+}
+
+enum ApplicationStatus {
+  pending
+  processed
+
+  @@map("application_status")
+}
+
+// 多對多顯式關聯表
+model CasePainPoint {
+  caseId      String    @map("case_id")
+  painPointId String    @map("pain_point_id")
+  case        Case      @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  painPoint   PainPoint @relation(fields: [painPointId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@id([caseId, painPointId])
+  @@map("case_pain_points")
+}
+
+model CaseSolution {
+  caseId     String   @map("case_id")
+  solutionId String   @map("solution_id")
+  case       Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  solution   Solution @relation(fields: [solutionId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@id([caseId, solutionId])
+  @@map("case_solutions")
+}
+
+model SolutionPainPoint {
+  solutionId  String    @map("solution_id")
+  painPointId String    @map("pain_point_id")
+  solution    Solution  @relation(fields: [solutionId], references: [id], onDelete: Cascade)
+  painPoint   PainPoint @relation(fields: [painPointId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@id([solutionId, painPointId])
+  @@map("solution_pain_points")
+}
