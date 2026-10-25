@@ -6,16 +6,30 @@ import { getRedis } from "@/server/redis";
 
 const DATE_PREFIX = "__date:";
 
-function replacer(_key: string, value: unknown): unknown {
-  return value instanceof Date ? DATE_PREFIX + value.toISOString() : value;
+// ⚠️ JSON.stringify 會先 call Date.toJSON() 先至 call replacer——
+// 即係 replacer 收嘅 value 已經係 ISO string，「value instanceof Date」永遠
+// 唔成立（呢個 bug 令快取寫入時 prefix 冇咗，第二次讀取 output 驗證爆）。
+// 正解：用 this[key] 攞返上層 object 入面嘅原值判斷係咪真 Date。
+export function replacer(this: Record<string, unknown>, key: string, value: unknown): unknown {
+  const original = this[key];
+  if (original instanceof Date) {
+    return DATE_PREFIX + original.toISOString();
+  }
+  return value;
 }
 
-function reviver(_key: string, value: unknown): unknown {
+export function reviver(_key: string, value: unknown): unknown {
   if (typeof value === "string" && value.startsWith(DATE_PREFIX)) {
     return new Date(value.slice(DATE_PREFIX.length));
   }
   return value;
 }
+
+export const serializeForCache = (value: unknown): string =>
+  JSON.stringify(value, replacer);
+
+export const parseFromCache = (json: string): unknown =>
+  JSON.parse(json, reviver);
 
 /** 快取 wrapper；Redis 唔可用時直接執行 fn（fail-open） */
 export async function cached<T>(
@@ -28,10 +42,10 @@ export async function cached<T>(
   try {
     const hit = await redis.get(key);
     if (hit !== null) {
-      return JSON.parse(hit, reviver) as T;
+      return parseFromCache(hit) as T;
     }
     const value = await fn();
-    await redis.set(key, JSON.stringify(value, replacer), "EX", ttlSeconds);
+    await redis.set(key, serializeForCache(value), "EX", ttlSeconds);
     return value;
   } catch {
     // Redis 出錯 → 降級為直接查 DB
