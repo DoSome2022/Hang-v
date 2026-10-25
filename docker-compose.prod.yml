@@ -1,0 +1,56 @@
+# 生產部署（方案 B：共用 PG shared-db，喺 ../done/shared-db 或伺服器 /srv/shared-db 起動）
+# - migrate：每次 compose up 跑一次 prisma migrate deploy（項目有正式 migrations）
+# - app：等 migrate 成功先起；NextAuth admin 帳密嚟自 .env
+#
+# .env 嘅 POSTGRES_PASSWORD 要同 shared-db 嘅密碼一致
+# 首次部署前（伺服器）：
+#   docker network create npm-net && docker network connect npm-net <NPM容器名>
+#   cd shared-db && docker compose up -d   ← 共用 PG 先起（會自動建 claude_hangs_db）
+
+services:
+  redis:
+    image: redis:alpine
+    container_name: claude-hangs-redis
+    restart: unless-stopped
+    networks:
+      - npm-net
+
+  migrate:
+    build:
+      context: .
+      target: build
+    container_name: claude-hangs-migrate
+    restart: "no"
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://popo:${POSTGRES_PASSWORD}@shared-db:5432/claude_hangs_db?schema=public
+    command: sh -c "npx prisma migrate deploy"
+    networks:
+      - npm-net
+
+  app:
+    build: .
+    container_name: claude-hangs-app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://popo:${POSTGRES_PASSWORD}@shared-db:5432/claude_hangs_db?schema=public
+      # Redis：公開頁快取 + 登入限流（冇設會優雅降級）
+      REDIS_URL: redis://redis:6379/0
+      # Auth.js v5 喺反向代理後需要信任 proxy 嘅 Host header
+      AUTH_TRUST_HOST: "true"
+      # Docker 會自動 set HOSTNAME=容器ID，Next 16 standalone 會跟住 bind 落
+      # 單一 interface——強制設 0.0.0.0
+      HOSTNAME: "0.0.0.0"
+    depends_on:
+      redis:
+        condition: service_started
+      migrate:
+        condition: service_completed_successfully
+    # 唔開 host port：由 NPM Proxy Host 指向 claude-hangs-app:3000
+    networks:
+      - npm-net
+
+networks:
+  npm-net:
+    external: true

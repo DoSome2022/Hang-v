@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // 部署用：輸出獨立 bundle（.next/standalone），Docker 內直接 node server.js
+  output: "standalone",
 };
 
 export default nextConfig;

@@ -4,6 +4,11 @@ import {
   protectedProcedure,
   publicProcedure,
 } from "@/server/api/trpc";
+import { cached } from "@/server/cache";
+import { deleteByPattern } from "@/server/redis";
+
+// 快取 TTL：公開讀（秒）
+const REGION_TTL = 5 * 60;
 
 const regionOutput = z.object({
   id: z.string(),
@@ -20,32 +25,44 @@ const regionCreateInput = z.object({
 
 export const regionRouter = createTRPCRouter({
   list: publicProcedure.output(z.array(regionOutput)).query(async ({ ctx }) => {
-    return ctx.db.region.findMany({ orderBy: { createdAt: "asc" } });
+    // 公開讀快取（TTL 5 分鐘；admin 用嘅係 public 同一支，改完會即時失效）
+    return cached("region:list", REGION_TTL, () =>
+      ctx.db.region.findMany({ orderBy: { createdAt: "asc" } }),
+    );
   }),
   get: publicProcedure
     .input(z.object({ slug: z.string() }))
     .output(regionOutput.nullable())
     .query(async ({ ctx, input }) => {
-      return ctx.db.region.findUnique({ where: { slug: input.slug } });
+      return cached(`region:get:${input.slug}`, REGION_TTL, () =>
+        ctx.db.region.findUnique({ where: { slug: input.slug } }),
+      );
     }),
   create: protectedProcedure
     .input(regionCreateInput)
     .output(regionOutput)
     .mutation(async ({ ctx, input }) => {
-      return ctx.db.region.create({ data: input });
+      const created = await ctx.db.region.create({ data: input });
+      await deleteByPattern("region:*");
+      return created;
     }),
   update: protectedProcedure
     .input(regionCreateInput.extend({ id: z.string() }))
     .output(regionOutput)
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
-      return ctx.db.region.update({ where: { id }, data });
+      const updated = await ctx.db.region.update({ where: { id }, data });
+      await deleteByPattern("region:*");
+      return updated;
     }),
   delete: protectedProcedure
     .input(z.object({ id: z.string() }))
     .output(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       await ctx.db.region.delete({ where: { id: input.id } });
+      // region 刪除會 cascade 到 case——公開 case 快取都要失效
+      await deleteByPattern("region:*");
+      await deleteByPattern("case:*");
       return { id: input.id };
     }),
 });

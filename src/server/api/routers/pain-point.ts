@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
+import { deleteByPattern } from "@/server/redis";
 
 const painPointOutput = z.object({
   id: z.string(),
@@ -26,20 +27,26 @@ export const painPointRouter = createTRPCRouter({
     .input(painPointCreateInput)
     .output(painPointOutput)
     .mutation(async ({ ctx, input }) => {
-      return ctx.db.painPoint.create({ data: input });
+      const created = await ctx.db.painPoint.create({ data: input });
+      // 案例詳情快取內含痛點資料 + 相關案例依賴痛點關聯 → 一併失效
+      await deleteByPattern("case:*");
+      return created;
     }),
   update: protectedProcedure
     .input(painPointCreateInput.extend({ id: z.string() }))
     .output(painPointOutput)
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
-      return ctx.db.painPoint.update({ where: { id }, data });
+      const updated = await ctx.db.painPoint.update({ where: { id }, data });
+      await deleteByPattern("case:*");
+      return updated;
     }),
   delete: protectedProcedure
     .input(z.object({ id: z.string() }))
     .output(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       await ctx.db.painPoint.delete({ where: { id: input.id } });
+      await deleteByPattern("case:*");
       return { id: input.id };
     }),
 });
