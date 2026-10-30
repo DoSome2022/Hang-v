@@ -23,6 +23,12 @@ export const painPointRouter = createTRPCRouter({
     .query(async ({ ctx }) => {
       return ctx.db.painPoint.findMany({ orderBy: { createdAt: "asc" } });
     }),
+  get: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .output(painPointOutput)
+    .query(async ({ ctx, input }) => {
+      return ctx.db.painPoint.findUniqueOrThrow({ where: { id: input.id } });
+    }),
   create: protectedProcedure
     .input(painPointCreateInput)
     .output(painPointOutput)

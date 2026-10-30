@@ -38,6 +38,13 @@ export const regionRouter = createTRPCRouter({
         ctx.db.region.findUnique({ where: { slug: input.slug } }),
       );
     }),
+  // 後台編輯用：依 id 取（不回 null，找不到由 errorFormatter 轉 404）
+  getById: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .output(regionOutput)
+    .query(async ({ ctx, input }) => {
+      return ctx.db.region.findUniqueOrThrow({ where: { id: input.id } });
+    }),
   create: protectedProcedure
     .input(regionCreateInput)
     .output(regionOutput)

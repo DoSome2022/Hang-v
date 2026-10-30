@@ -1,23 +1,27 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowUpRight } from 'lucide-react';
-import { cases, getCase } from '@/lib/cases';
 import { pageMetadata } from '@/lib/metadata';
 import { company, siteUrl } from '@/lib/site';
 import { ConsultButton } from '@/components/site-shell';
-import { containerClass, sectionLabelClass, sectionLabelDotClass, buttonClass, buttonNavyClass } from '@/lib/ui';
+import { ApplyLink } from '@/app/_components/apply-link';
+import { formatDate } from '@/lib/format';
+import { containerClass, sectionLabelClass, sectionLabelDotClass, buttonClass, buttonNavyClass, buttonPrimaryClass } from '@/lib/ui';
+import { createCaller } from '@/server/api/caller';
 
-export const dynamicParams = false;
-
-export function generateStaticParams() {
-  return cases.map((c) => ({ slug: c.slug }));
-}
+// DB 驅動：build 唔打 DB
+export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const data = getCase(slug);
-  if (!data) return {};
-  return pageMetadata(`${data.title}｜真實案例`, data.summary, `/cases/${slug}`);
+  try {
+    const caller = await createCaller();
+    const data = await caller.case.getPublicBySlug({ slug });
+    if (!data) return {};
+    return pageMetadata(`${data.title}｜真實案例`, data.summary || data.title, `/cases/${slug}`);
+  } catch {
+    return {};
+  }
 }
 
 const h2Class = 'mt-[44px] mb-4 text-[26px] leading-[1.5] tracking-[-0.6px] max-[700px]:text-[23px]';
@@ -27,10 +31,9 @@ const liClass =
 
 export default async function CasePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const data = getCase(slug);
+  const caller = await createCaller();
+  const data = await caller.case.getPublicBySlug({ slug });
   if (!data) notFound();
-
-  const related = cases.filter((c) => c.slug !== slug).slice(0, 2);
 
   const schema = {
     '@context': 'https://schema.org',
@@ -40,8 +43,7 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
         '@type': 'Article',
         headline: data.title,
         description: data.summary,
-        datePublished: data.date,
-        dateModified: data.date,
+        datePublished: data.publishedAt ? formatDate(data.publishedAt) : undefined,
         articleSection: data.category,
         author: { '@type': 'Organization', name: company.name, url: siteUrl },
         publisher: { '@type': 'Organization', name: company.name, logo: { '@type': 'ImageObject', url: `${siteUrl}/favicon.ico` } },
@@ -73,14 +75,14 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
               <span aria-current="page" className="text-[#55694b]">{data.title}</span>
             </nav>
             <span className="mt-[28px] inline-flex items-center rounded-[4px] border border-[#dce8c5] bg-[#eaf3da] p-[4px_10px] text-[12px] font-medium text-[#68854e]">
-              {data.category}
+              {data.category || '案例'}
             </span>
             <h1 className="mt-[20px] max-w-[840px] text-[clamp(34px,3.6vw,52px)] font-bold leading-[1.35] tracking-[-1.4px] max-[700px]:text-[clamp(28px,7.5vw,38px)]">
               {data.title}
             </h1>
             <p className="mt-6 max-w-[640px] text-[14px] leading-[2.05] text-[#738266]">{data.lead}</p>
             <div className="mt-[26px] flex flex-wrap items-center gap-[14px] text-[12px] text-[#8e9a81]">
-              <span>{data.date}</span>
+              <span>{formatDate(data.publishedAt)}</span>
               <span>·</span>
               <span>{data.readTime}</span>
               <span className="flex flex-wrap gap-2">
@@ -95,13 +97,13 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
         <section className="py-[104px] max-[1100px]:py-20">
           <div className={`${containerClass} max-w-[760px]`}>
             <article>
-              {data.sections.map((section) => (
-                <div key={section.heading}>
-                  <h2 className={h2Class}>{section.heading}</h2>
-                  {section.paragraphs.map((paragraph, i) => (
-                    <p key={i} className={pClass}>{paragraph}</p>
+              {data.sections.map((section, i) => (
+                <div key={section.heading || i}>
+                  {section.heading && <h2 className={h2Class}>{section.heading}</h2>}
+                  {section.paragraphs.map((paragraph, j) => (
+                    <p key={j} className={pClass}>{paragraph}</p>
                   ))}
-                  {section.bullets && (
+                  {section.bullets && section.bullets.length > 0 && (
                     <ul className="mb-6 list-none p-0">
                       {section.bullets.map((bullet) => (
                         <li key={bullet} className={liClass}>{bullet}</li>
@@ -111,29 +113,73 @@ export default async function CasePage({ params }: { params: Promise<{ slug: str
                 </div>
               ))}
 
-              <div className="mt-11 rounded-xl border border-[#d7e5bf] bg-[#fbfdf6] p-[28px_30px] max-[700px]:p-[22px]">
-                <span className="font-[Arial,sans-serif] text-[12px] tracking-[1.4px] text-[#8b9b7c]">{data.result.label}</span>
-                <strong className="mt-2 block text-[28px] font-bold tracking-[-0.6px] text-green-dark max-[700px]:text-[24px]">{data.result.value}</strong>
-                <p className="mt-[10px] text-[13px] leading-[1.9] text-[#7f8d72]">{data.result.note}</p>
+              {(data.result.value || data.result.label) && (
+                <div className="mt-11 rounded-xl border border-[#d7e5bf] bg-[#fbfdf6] p-[28px_30px] max-[700px]:p-[22px]">
+                  <span className="font-[Arial,sans-serif] text-[12px] tracking-[1.4px] text-[#8b9b7c]">{data.result.label || '整體成效'}</span>
+                  <strong className="mt-2 block text-[28px] font-bold tracking-[-0.6px] text-green-dark max-[700px]:text-[24px]">{data.result.value}</strong>
+                  {data.result.note && <p className="mt-[10px] text-[13px] leading-[1.9] text-[#7f8d72]">{data.result.note}</p>}
+                </div>
+              )}
+
+              {/* 痛點與所用方案 */}
+              {(data.painPoints.length > 0 || data.solutions.length > 0) && (
+                <div className="mt-10 grid gap-4 sm:grid-cols-2">
+                  {data.painPoints.length > 0 && (
+                    <div className="rounded-xl border border-[#e7eddf] bg-white p-[22px_24px]">
+                      <span className="font-[Arial,sans-serif] text-[12px] tracking-[1.4px] text-[#8b9b7c]">相關痛點</span>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {data.painPoints.map((p) => (
+                          <span key={p.id} className="rounded-[4px] border border-[#e2ead8] bg-[#f8fbf4] p-[4px_9px] text-[12px] text-[#6d7f62]">{p.title}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {data.solutions.length > 0 && (
+                    <div className="rounded-xl border border-[#e7eddf] bg-white p-[22px_24px]">
+                      <span className="font-[Arial,sans-serif] text-[12px] tracking-[1.4px] text-[#8b9b7c]">所用方案</span>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {data.solutions.map((s) => (
+                          <span key={s.id} className="rounded-[4px] border border-[#dce8c5] bg-[#eaf3da] p-[4px_9px] text-[12px] text-[#68854e]">{s.title}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 申請 CTA */}
+              <div className="mt-10 flex flex-wrap items-center gap-4 rounded-xl border border-[#e1e9d8] bg-[#fbfdf6] p-[24px_28px]">
+                <div className="min-w-0 flex-1">
+                  <strong className="block text-[16px] font-semibold">遇到類似問題？</strong>
+                  <p className="mt-1 text-[13px] leading-[1.9] text-[#7f8d72]">申請呢個案例，話俾我哋知你嘅現況。</p>
+                </div>
+                <ApplyLink
+                  caseId={data.id}
+                  title={data.title}
+                  label="申請此案例"
+                  className={`${buttonClass} ${buttonPrimaryClass} min-h-[45px] px-6 text-[12px]`}
+                />
               </div>
             </article>
           </div>
         </section>
 
-        <div className={`${containerClass} pb-12`}>
-          <span className="mb-[15px] block text-[12px] text-[#8a997e]">更多真實案例</span>
-          <div className="grid grid-cols-2 gap-4 max-[700px]:grid-cols-1">
-            {related.map((item) => (
-              <Link key={item.slug} href={`/cases/${item.slug}`} className="flex items-center justify-between gap-[10px] rounded-lg border border-[#e7eddf] p-[19px_20px] transition hover:border-[#cadcb5] hover:bg-[#f7faef]">
-                <span>
-                  <strong className="block text-[13px] font-medium">{item.title}</strong>
-                  <small className="mt-1 block text-[12px] text-[#8e9c81]">{item.category} · {item.readTime}</small>
-                </span>
-                <ArrowUpRight size={17} className="text-[#8fa779]" />
-              </Link>
-            ))}
+        {data.relatedCases.length > 0 && (
+          <div className={`${containerClass} pb-12`}>
+            <span className="mb-[15px] block text-[12px] text-[#8a997e]">更多真實案例</span>
+            <div className="grid grid-cols-2 gap-4 max-[700px]:grid-cols-1">
+              {data.relatedCases.map((item) => (
+                <Link key={item.slug} href={`/cases/${item.slug}`} className="flex items-center justify-between gap-[10px] rounded-lg border border-[#e7eddf] p-[19px_20px] transition hover:border-[#cadcb5] hover:bg-[#f7faef]">
+                  <span>
+                    <strong className="block text-[13px] font-medium">{item.title}</strong>
+                    <small className="mt-1 block text-[12px] text-[#8e9c81]">{item.category}</small>
+                  </span>
+                  <ArrowUpRight size={17} className="text-[#8fa779]" />
+                </Link>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         <section className="pb-[83px]">
           <div className={containerClass}>

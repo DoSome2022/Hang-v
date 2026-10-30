@@ -41,6 +41,17 @@ export const solutionRouter = createTRPCRouter({
         painPointIds: painPoints.map((p) => p.painPointId),
       }));
     }),
+  get: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .output(solutionOutput)
+    .query(async ({ ctx, input }) => {
+      const row = await ctx.db.solution.findUniqueOrThrow({
+        where: { id: input.id },
+        include: { painPoints: { select: { painPointId: true } } },
+      });
+      const { painPoints, ...rest } = row;
+      return { ...rest, painPointIds: painPoints.map((p) => p.painPointId) };
+    }),
   create: protectedProcedure
     .input(solutionCreateInput)
     .output(solutionOutput)

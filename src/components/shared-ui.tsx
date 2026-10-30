@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import logo from '@/public/image/HangsLogo.png';
+// Logo 放喺 repo root 的 public/image/（Docker standalone 會打包）
+const logo = '/image/HangsLogo.png';
 
 import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react';
 import { ArrowRight, Check, X, LockKeyhole, CircleCheck, Copy } from 'lucide-react';

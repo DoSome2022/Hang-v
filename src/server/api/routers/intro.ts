@@ -22,6 +22,12 @@ export const introRouter = createTRPCRouter({
     .query(async ({ ctx }) => {
       return ctx.db.intro.findMany({ orderBy: { createdAt: "asc" } });
     }),
+  get: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .output(introOutput)
+    .query(async ({ ctx, input }) => {
+      return ctx.db.intro.findUniqueOrThrow({ where: { id: input.id } });
+    }),
   create: protectedProcedure
     .input(introCreateInput)
     .output(introOutput)

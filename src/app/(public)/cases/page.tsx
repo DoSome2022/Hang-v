@@ -1,10 +1,15 @@
 import Link from 'next/link';
 import { ArrowUpRight } from 'lucide-react';
-import { cases } from '@/lib/cases';
 import { pageMetadata } from '@/lib/metadata';
 import { company, siteUrl } from '@/lib/site';
 import { ConsultButton } from '@/components/site-shell';
+import { ApplyLink } from '@/app/_components/apply-link';
+import { formatDate } from '@/lib/format';
 import { containerClass, sectionLabelClass, sectionLabelDotClass, buttonClass, buttonNavyClass, onlineDotClass } from '@/lib/ui';
+import { createCaller } from '@/server/api/caller';
+
+// DB 驅動：build 唔打 DB（force-dynamic + request-time 查詢）
+export const dynamic = 'force-dynamic';
 
 const description =
   '實瀚科技真實客戶案例：補習社管理系統、裝修工程項目管理、五金店電商。了解香港中小企如何用 AI、自動化與客製系統解決實際業務問題。';
@@ -14,7 +19,10 @@ export const metadata = pageMetadata('真實案例｜成功案例與數碼轉型
 const cardClass =
   'flex flex-col rounded-[12px] border border-[#e1e9d8] bg-white p-[26px] transition-[transform,border-color,box-shadow] duration-200 hover:-translate-y-1 hover:border-[#c6d8b6] hover:shadow-[0_14px_28px_-18px_#3b56282a]';
 
-export default function CasesPage() {
+export default async function CasesPage() {
+  const caller = await createCaller();
+  const cases = await caller.case.listPublic();
+
   const schema = {
     '@context': 'https://schema.org',
     '@graph': [
@@ -24,7 +32,7 @@ export default function CasesPage() {
         name: '真實案例',
         description,
         url: `${siteUrl}/cases`,
-        mainEntity: cases.map((item) => ({ '@type': 'Article', headline: item.title, url: `${siteUrl}/cases/${item.slug}`, datePublished: item.date })),
+        mainEntity: cases.map((item) => ({ '@type': 'Article', headline: item.title, url: `${siteUrl}/cases/${item.slug}`, datePublished: item.publishedAt ? formatDate(item.publishedAt) : undefined })),
       },
       {
         '@type': 'BreadcrumbList',
@@ -64,28 +72,40 @@ export default function CasesPage() {
 
         <section className="py-[104px] max-[1100px]:py-20">
           <div className={containerClass}>
-            <div className="grid grid-cols-3 gap-[22px] max-[900px]:grid-cols-2 max-[900px]:gap-4 max-[700px]:grid-cols-1">
-              {cases.map((item) => (
-                <article className={cardClass} key={item.slug}>
-                  <span className="mb-4 inline-flex w-fit items-center rounded-[4px] border border-[#dce8c5] bg-[#eaf3da] p-[4px_10px] text-[12px] font-medium text-[#68854e]">
-                    {item.category}
-                  </span>
-                  <h3 className="text-[20px] font-semibold leading-[1.55] tracking-[-0.4px] max-[900px]:text-[19px] max-[700px]:text-[22px]">
-                    <Link href={`/cases/${item.slug}`} className="hover:text-green-dark">{item.title}</Link>
-                  </h3>
-                  <p className="mt-3 text-[13px] leading-[2] text-[#7f8d72] max-[900px]:text-[12px] max-[700px]:text-[13px]">{item.excerpt}</p>
-                  <div className="mt-4 flex flex-wrap gap-[14px] text-[12px] text-[#9aa58e]">
-                    <span>{item.date}</span>
-                    <span>·</span>
-                    <span>{item.readTime}</span>
-                  </div>
-                  <Link href={`/cases/${item.slug}`} className="mt-auto inline-flex items-center gap-[7px] pt-[18px] text-[13px] font-medium text-[#68864e] hover:text-green-dark">
-                    閱讀案例
-                    <ArrowUpRight size={15} />
-                  </Link>
-                </article>
-              ))}
-            </div>
+            {cases.length === 0 ? (
+              <p className="py-12 text-center text-[14px] text-[#8e9a81]">暫時未有公開案例，請稍後再來。</p>
+            ) : (
+              <div className="grid grid-cols-3 gap-[22px] max-[900px]:grid-cols-2 max-[900px]:gap-4 max-[700px]:grid-cols-1">
+                {cases.map((item) => (
+                  <article className={cardClass} key={item.slug}>
+                    <span className="mb-4 inline-flex w-fit items-center rounded-[4px] border border-[#dce8c5] bg-[#eaf3da] p-[4px_10px] text-[12px] font-medium text-[#68854e]">
+                      {item.category || '案例'}
+                    </span>
+                    <h3 className="text-[20px] font-semibold leading-[1.55] tracking-[-0.4px] max-[900px]:text-[19px] max-[700px]:text-[22px]">
+                      <Link href={`/cases/${item.slug}`} className="hover:text-green-dark">{item.title}</Link>
+                    </h3>
+                    <p className="mt-3 text-[13px] leading-[2] text-[#7f8d72] max-[900px]:text-[12px] max-[700px]:text-[13px]">{item.excerpt}</p>
+                    <div className="mt-4 flex flex-wrap gap-[14px] text-[12px] text-[#9aa58e]">
+                      <span>{formatDate(item.publishedAt)}</span>
+                      <span>·</span>
+                      <span>{item.readTime}</span>
+                    </div>
+                    <div className="mt-auto flex items-center justify-between gap-3 pt-[18px]">
+                      <Link href={`/cases/${item.slug}`} className="inline-flex items-center gap-[7px] text-[13px] font-medium text-[#68864e] hover:text-green-dark">
+                        閱讀案例
+                        <ArrowUpRight size={15} />
+                      </Link>
+                      <ApplyLink
+                        caseId={item.id}
+                        title={item.title}
+                        label="申請"
+                        className="inline-flex items-center rounded-[6px] border border-green bg-green px-[14px] py-[7px] text-[12px] font-medium text-white transition hover:bg-green-dark"
+                      />
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
           </div>
         </section>
 
