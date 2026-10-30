@@ -27,7 +27,8 @@
 mkdir -p /www/wwwroot/hangs
 cd /www/wwwroot/hangs
 # 上傳專案檔（git clone 或 SFTP；main 分支即最新合併專案）
-git clone git@github.com:DoSome2022/Hang-v.git .
+# repo 係 public，普通 HTTPS clone 唔使驗證
+git clone https://github.com/DoSome2022/Hang-v.git .
 ```
 
 ## 三、建立 .env
