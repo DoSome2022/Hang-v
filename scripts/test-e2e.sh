@@ -27,6 +27,8 @@ export AUTH_ADMIN_PASSWORD="$AUTH_PASSWORD"
 # e2e 用 Redis /1 隔離快取與佇列（避免同 dev DB 共用 /0 互相污染）
 export REDIS_URL="$(echo "$REDIS_URL" | sed 's|/[0-9]*$|/1|')"
 export NEXT_PUBLIC_SITE_URL="http://127.0.0.1:3107"
+# Playwright webServer 用 standalone server.js，build 必須係 standalone 輸出
+export STANDALONE_BUILD=1
 
 echo "==> migrate deploy + seed"
 npx prisma migrate deploy

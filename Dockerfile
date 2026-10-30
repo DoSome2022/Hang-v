@@ -15,6 +15,8 @@ RUN apk add --no-cache openssl
 ARG NEXT_PUBLIC_SITE_URL=""
 ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 ENV NEXT_TELEMETRY_DISABLED=1
+# Docker 用 standalone 輸出（runner 直接 node server.js）
+ENV STANDALONE_BUILD=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # prisma generate 唔需要真實 DB，用 dummy URL 過 schema 檢查

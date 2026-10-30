@@ -1,5 +1,7 @@
 # 部署指南（阿里雲 + 寶塔 BT Panel）
 
+有兩種部署方式：**Docker（推薦，自足式 compose）** 同 **傳統 npm 部署（寶塔 Node 項目管理器 + PM2）**。兩者都可以，傳統方式步驟見「附錄 B」。
+
 架構（自足式 compose：db + redis + app 全部喺容器內）：
 
 ```
@@ -135,3 +137,69 @@ docker compose -f docker-compose.prod.yml exec redis redis-cli BGSAVE
 | 寶塔反代 502 | `docker compose -f docker-compose.prod.yml ps` 睇 hangs-app 係咪 healthy；反代目標應係 `http://127.0.0.1:3000` |
 | 端口衝突 | 3000 被佔：.env 加 `APP_PORT=3100`（寶塔反代目標改返 3100） |
 | db 密碼改咗連唔上 | 第一次起後密碼已寫入 volume；要改就 `docker compose down -v`（會清資料！）再起 |
+
+---
+
+## 附錄 B：傳統 npm 部署（寶塔 Node 項目管理器，唔用 Docker）
+
+適合唔想用 Docker、或者輕量機 RAM 好緊（build 唔使經容器）嘅情況。
+
+### 前置（寶塔軟體商店安裝）
+
+1. **Node.js 版本管理器** → 安裝 **v22**（.nvmrc 指定）
+2. **PostgreSQL 管理器**（或 PostgresSQL）→ 建庫 `claude_hangs_db` + 用戶（記低帳密）
+3. **Redis** → 安裝即可（預設 127.0.0.1:6379）
+
+### 部署步驟
+
+```bash
+cd /www/wwwroot/hangs
+git clone https://github.com/DoSome2022/Hang-v.git .
+
+# .env（參考 .env.example）：DATABASE_URL 指向寶塔 PG、AUTH_* 、NEXT_PUBLIC_SITE_URL
+cp .env.example .env && vim .env
+
+npm install
+npx prisma generate
+# 建表：優先 migrate deploy（有 migration 歷史，日後升級安全）
+npx prisma migrate deploy
+# 或初次想最簡單可以用 db push（冇 migration 歷史，日後改 schema 要小心）
+# npx prisma db push
+
+# 種子資料（3 篇案例、標籤等；可重複執行）
+npx prisma db seed
+
+# build（NEXT_PUBLIC_SITE_URL 喺呢步注入；唔設會 noindex）
+npm run build
+```
+
+### 起服務（寶塔 Node 項目管理器）
+
+1. 寶塔 → **Node 項目** → 添加項目
+   - 項目目錄：`/www/wwwroot/hangs`
+   - 啟動選項：`npm` 腳本 → `start`（即 `next start`，跑喺 3000 埠）
+   - Node 版本：v22；開機啟動 ✓
+2. 檢查：`curl http://127.0.0.1:3000/api/health` 應回 `db up / redis up`
+
+### 寶塔反代 + SSL
+
+同正文「五、寶塔面板設定」一樣：反向代理目標 `http://127.0.0.1:3000` + `proxy_set_header X-Forwarded-For $remote_addr;` + SSL。
+
+### 之後每次更新
+
+```bash
+cd /www/wwwroot/hangs
+git pull
+npm install              # 有新 dependency 先跑
+npx prisma generate
+npx prisma migrate deploy  # 有 schema 改動時
+npm run build
+# 喺寶塔 Node 管理器重啟項目
+```
+
+### 傳統方式注意事項
+
+- build 同 runtime 都要 Node 22；build 時 .env 一定要有 `NEXT_PUBLIC_SITE_URL`
+- 改網域 / 改 `NEXT_PUBLIC_SITE_URL` 要重新 `npm run build` 並重啟
+- 唔好混用 `db push` 同 `migrate deploy`（兩者歷史機制唔同）；一開頭用咗 `migrate deploy` 就一直用佢
+- PM2 預設會幫你重啟；寶塔 Node 管理器本身有日誌同監控

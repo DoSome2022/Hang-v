@@ -1,8 +1,9 @@
 import type { NextConfig } from "next";
 
+// STANDALONE_BUILD=1 時輸出 standalone bundle（Docker / Playwright e2e 用）。
+// 冇設（預設）就係普通 build，配合 `next start`（寶塔 Node 項目管理器 + PM2 的傳統部署）。
 const nextConfig: NextConfig = {
-  // 部署用：輸出獨立 bundle（.next/standalone），Docker 內直接 node server.js
-  output: "standalone",
+  ...(process.env.STANDALONE_BUILD === "1" ? { output: "standalone" as const } : {}),
   poweredByHeader: false,
   reactStrictMode: true,
   serverExternalPackages: ["ioredis"],
