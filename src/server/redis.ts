@@ -84,6 +84,17 @@ export async function getRedis(): Promise<Redis | null> {
   return ready ? client : null;
 }
 
+/** 一次性腳本（seed 等）用：斷開連線令 process 可以退出 */
+export async function closeRedis(): Promise<void> {
+  const state = globalForRedis.__hangsRedis;
+  if (!state) return;
+  try {
+    state.client.disconnect();
+  } catch {
+    // no-op
+  }
+}
+
 /** SCAN + DEL：按 pattern 刪除快取鍵（避免 KEYS 阻塞） */
 export async function deleteByPattern(pattern: string): Promise<void> {
   const redis = await getRedis();

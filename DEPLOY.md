@@ -1,105 +1,135 @@
-# 部署指南（騰訊雲輕量伺服器・香港・NPM 已裝・方案 B 共用 PG）
+# 部署指南（阿里雲 + 寶塔 BT Panel）
 
-架構：`NPM (80/443) → npm-net → claude-hangs-app (Next 16 standalone :3000) → shared-db (claude_hangs_db) + redis`
+架構（自足式 compose：db + redis + app 全部喺容器內）：
 
 ```
-公網 ──► NPM ──► app（Next.js 自己 serve 行銷官網 + 後台 + tRPC + NextAuth）
-                   │
-                   ├──► shared-db（共用 PG，database: claude_hangs_db）
-                   └──► redis（公開頁快取 + 登入限流 + 諮詢限流/佇列）
-
-（migrate 係一次性服務：每次 compose up 先跑 prisma migrate deploy，成功後 app 先起）
+公網 (80/443)
+   └─► 寶塔 Nginx（網站 → 反向代理，SSL）
+         └─► 127.0.0.1:3000 ──► hangs-app（Next.js 16 standalone）
+                                  ├─► hangs-db（PostgreSQL 16，volume 持久化）
+                                  └─► hangs-redis（AOF 持久化）
 ```
 
-## Redis 功能
+## 一、伺服器準備（寶塔）
 
-| 功能 | 位置 | 行為 |
-|---|---|---|
-| 公開頁快取 | `src/server/cache.ts` + region/case routers | `region:*` TTL 5 分鐘、`case:*` 列表 2 分鐘/詳情 5 分鐘；admin 寫入即時失效 |
-| 登入限流 | `src/server/auth.ts` | 同 IP 失敗 5 次 → 鎖 15 分鐘（Lua 原子 INCR+EXPIRE）；Redis 唔可用 **fail-open** |
-| 諮詢限流 + 佇列 | `src/app/api/consult/route.ts` | per-IP 5 次/10 分鐘 + 全域 100 次/小時（Lua 原子）；`hangs:consult:queue` 上限 1000；Redis 唔可用 → 503 |
+1. 裝好寶塔面板（阿里雲安全組：放行 80/443/22 + 寶塔面板埠；**唔好放行 3000**）
+2. 寶塔「軟體商店」安裝 **Docker 管理器**（docker + compose 會一併裝好）
+3. 輕量機（2GB RAM）建議加 swap：
+   ```bash
+   fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+   echo '/swapfile none swap sw 0 0' >> /etc/fstab
+   ```
+4. 確認架構：`uname -m`（`x86_64` 或 `aarch64`，見下方「架構注意」）
 
-**Redis 唔可用時**：快取直落 DB、限流放行、`/api/health` 回 200 `degraded`——app 唔會 crash、唔會被 docker 判定 unhealthy。
-**DB 唔可用時**：`/api/health` 回 503（容器 unhealthy）。
-
-## 部署前檢查
-
-- [ ] DNS A record 已指向伺服器 IP
-- [ ] `.env` 上伺服器（`AUTH_SECRET` 用 `openssl rand -base64 32` 產生；`AUTH_ADMIN_USERNAME`/`AUTH_ADMIN_PASSWORD` **上線前一定要改**）
-- [ ] `.env` 加 `POSTGRES_PASSWORD`（同 shared-db 密碼一致）
-- [ ] `.env` 加 `NEXT_PUBLIC_SITE_URL=https://你的正式網域`（build 時注入；未設全站 noindex）
-- [ ] shared-db 已起（`docker compose up -d`，會自動建 `claude_hangs_db`）
-
-## 一次性設定（每部伺服器做一次）
+## 二、上傳專案
 
 ```bash
-docker network create npm-net
-docker network connect npm-net <你個NPM容器名>
+mkdir -p /www/wwwroot/hangs
+cd /www/wwwroot/hangs
+# 上傳專案檔（git clone 或 SFTP；git clone 後 git checkout merge-hangs-v2）
 ```
 
-> 輕量機得 2GB RAM 嘅話，跑 PG + Next 前建議加 swap。
-
-## 首次部署
+## 三、建立 .env
 
 ```bash
-cd claude_hangs
-# 上傳 .env 後：
-NEXT_PUBLIC_SITE_URL=https://你的正式網域 docker compose -f docker-compose.prod.yml build
-docker compose -f docker-compose.prod.yml up -d
-docker compose -f docker-compose.prod.yml ps        # app 應 healthy
-# 首次內容（3 篇案例、標籤、news 等種子資料）——seed 唔會自動跑：
-docker compose -f docker-compose.prod.yml exec app npx tsx prisma/seed.ts
+cd /www/wwwroot/hangs
+cp .env.example .env
+vim .env
 ```
 
-> seed 全 upsert、可重複執行，唔會覆蓋既有資料。
+必填（其他有預設）：
 
-## NPM 面板設定
+```dotenv
+# 資料庫密碼（自訂強密碼；db 容器第一次起時生效，之後改要連 volume 一齊清）
+POSTGRES_PASSWORD="改成強密碼"
+# NextAuth（openssl rand -base64 32）
+AUTH_SECRET="openssl rand -base64 32 的輸出"
+AUTH_ADMIN_USERNAME="你的管理帳號"
+AUTH_ADMIN_PASSWORD="你的管理密碼"
+# 正式網域（build 時注入；唔設會全站 noindex）
+NEXT_PUBLIC_SITE_URL="https://你的正式網域"
+```
 
-1. **Proxy Hosts → Add Proxy Host**：
-   - Domain：`你的域名`
-   - Forward Hostname/IP：`claude-hangs-app`　Port：`3000`
-   - 開 **Block Common Exploits**、**Websockets Support**
-   - **Advanced → Custom Nginx Configuration**（覆寫而非附加 XFF，限流先可信）：
-     ```nginx
-     proxy_set_header X-Forwarded-For $remote_addr;
-     ```
-2. **SSL**：Request a New Certificate → Force SSL
-3. app 只綁 `127.0.0.1`，3000 埠唔會暴露公網
-
-## 之後每次更新
+## 四、部署
 
 ```bash
-cd claude_hangs
+cd /www/wwwroot/hangs
+# 1. build 鏡像 + 起 db/redis/migrate/app（migrate 自動套用 migrations）
+docker compose -f docker-compose.prod.yml up -d --build
+
+# 2. 等 app healthy（約 30-60 秒，含 build 時間）
+docker compose -f docker-compose.prod.yml ps        # hangs-app 應 (healthy)
+
+# 3. 首次內容種子（3 篇案例、標籤、news 等；全 upsert 可重複跑）
+docker compose -f docker-compose.prod.yml --profile seed run --rm --build seed
+```
+
+> ⚠️ `run --rm seed` 一定要加 `--build`（第一次冇改過 code 可以省），否則會用舊鏡像。
+
+## 五、寶塔面板設定（反向代理 + SSL）
+
+1. **網站 → 添加站點**：填網域，根目錄隨意（建個空資料夾）
+2. **站點 → 設置 → 反向代理**：
+   - 目標 URL：`http://127.0.0.1:3000`
+   - 發送域名：`$host`
+3. **站點 → 設置 → 配置文件**，喺 `location /` 的 proxy 區塊加（覆寫而非附加 XFF，登入限流同諮詢限流先可信）：
+   ```nginx
+   proxy_set_header X-Forwarded-For $remote_addr;
+   ```
+4. **SSL**：站點 → SSL → Let's Encrypt（或你的證書）→ 開強制 HTTPS
+5. **防火牆**：阿里雲安全組 + 寶塔防火牆只開 80/443/22
+
+## 六、驗證清單
+
+```bash
+# 本機（伺服器上）
+curl http://127.0.0.1:3000/api/health            # {"status":"ok","db":"up","redis":"up"}
+curl -s http://127.0.0.1:3000/cases | grep 補習社  # seed 後即時見到案例
+curl -sI http://127.0.0.1:3000/admin | grep -i location   # → /admin/login
+
+# 對外（你部機）
+https://你的網域/api/health                      # ok + db/redis up
+https://你的網域/cases                            # 3 張案例卡
+https://你的網域/admin/login                      # 可登入（.env 帳密）
+# 首頁 meta robots 應係 index,follow（NEXT_PUBLIC_SITE_URL 有設定）
+# sitemap.xml 應含 /cases/tutoring-centre-management
+```
+
+## 七、之後每次更新
+
+```bash
+cd /www/wwwroot/hangs
 git pull
 docker compose -f docker-compose.prod.yml up -d --build
 docker image prune -f
+# 有新 seed 內容先跑：docker compose -f docker-compose.prod.yml --profile seed run --rm --build seed
 ```
 
-## 注意事項
+## 八、架構注意（重要）
 
-- **本地開發**：`make setup` / `make dev` / `make test` / `make test-e2e` / `make db-seed`
-- **本地 Redis**：`docker compose --profile redis up -d redis`（本機已裝 Redis 可跳過）
-- **模型改動**：`prisma migrate dev` 生成 migration → commit → 部署時 `migrate deploy` 自動套用
-- **admin 登入**：`/admin/login`，帳密喺 `.env`（NextAuth JWT session）
-- **諮詢佇列觀察**：`docker compose -f docker-compose.prod.yml exec redis redis-cli LLEN hangs:consult:queue`
-- **健康檢查語義**：DB down → 503（unhealthy）；Redis down → 200 degraded（唔會誤重啟）
+- **本機 build 的鏡像唔可以搬去伺服器**：Mac（M 系）build 出嚟係 `arm64`，多數阿里雲 ECS 係 `x86_64`。一律**喺伺服器 build**（`docker compose up -d --build`，會自動按伺服器架構 build）。若伺服器係 ARM（g8y 等），一樣照跑。
+- 本機 docker build 只係驗證 Dockerfile 正確，唔係產物。
 
-## 資料備份
+## 九、備份
 
 ```bash
-# PG（跟 shared-db 統一）
-docker exec shared-db pg_dump -U popo claude_hangs_db > backup_claude_hangs_$(date +%F).sql
-# Redis（AOF 已開，volume redis-data；需要時一併備份）
+# DB（每日 cron）
+docker compose -f docker-compose.prod.yml exec db pg_dump -U popo claude_hangs_db | gzip > /www/backup/hangs-db-$(date +%F).sql.gz
+# Redis（AOF 已開，volume 一併備份更穩陣）
 docker compose -f docker-compose.prod.yml exec redis redis-cli BGSAVE
+# 寶塔亦可在「資料庫/檔案」做定期備份
 ```
 
-## 疑難排解
+## 十、疑難排解
 
 | 問題 | 處理 |
 |---|---|
-| migrate 失敗 | `docker compose -f docker-compose.prod.yml logs migrate`；schema 改咗要先生成 migration |
-| 登入 redirect loop | `AUTH_SECRET` 有冇填（非空）+ `AUTH_TRUST_HOST`（compose 已設 true） |
-| 連唔到 DB | shared-db 有冇起；`POSTGRES_PASSWORD` 係咪同 shared-db 一致 |
-| NPM 出 502 | `docker ps` 睇 claude-hangs-app 係咪 up 兼喺 `npm-net`；`logs` 睇 health |
-| 諮詢表單 429/503 | Redis down → 503；限流觸發 → 429（睇 `Retry-After`） |
-| 首頁 noindex | 有冇喺 build 時設 `NEXT_PUBLIC_SITE_URL`；改網域要重新 build |
+| build 時 OOM / 卡住 | 加 swap；或分兩步：`docker compose build` 單獨跑，再 `up -d` |
+| migrate 失敗 | `docker compose -f docker-compose.prod.yml logs migrate`；schema 改咗要 commit migrations |
+| 登入 redirect loop | `AUTH_SECRET` 有冇填（非空、唔好用 .env.example 原值） |
+| 案例頁 404 / 內容唔見 | 有冇跑 seed？跑咗之後如仍 404，檢查 `NEXT_PUBLIC_SITE_URL` 係咪同實際網域一致並重新 build |
+| 諮詢表單 503 | Redis 容器唔 healthy：`docker compose -f docker-compose.prod.yml logs redis` |
+| 網站 noindex | `NEXT_PUBLIC_SITE_URL` 有冇設 + 重新 build（改網域都要重 build） |
+| 寶塔反代 502 | `docker compose -f docker-compose.prod.yml ps` 睇 hangs-app 係咪 healthy；反代目標應係 `http://127.0.0.1:3000` |
+| 端口衝突 | 3000 被佔：.env 加 `APP_PORT=3100`（寶塔反代目標改返 3100） |
+| db 密碼改咗連唔上 | 第一次起後密碼已寫入 volume；要改就 `docker compose down -v`（會清資料！）再起 |

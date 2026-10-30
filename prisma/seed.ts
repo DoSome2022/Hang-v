@@ -3,6 +3,7 @@
 // 注意：production 唔會自動跑 seed，如需首發內容請手動執行。
 
 import { PrismaClient } from '@prisma/client';
+import { closeRedis, deleteByPattern } from '../src/server/redis';
 import { seedCases } from './seed-data/cases';
 import { seedTagGroups, seedTags, seedPainPoints, seedSolutions } from './seed-data/taxonomy';
 import { seedNews } from './seed-data/news';
@@ -242,6 +243,11 @@ async function main() {
   await seedAccounts();
   await seedIntro(region.id);
 
+  // 清公開頁快取：避免部署後「空案例列表」負面快取殘留 2 分鐘
+  // （Redis 唔可用時 deleteByPattern 係 no-op，唔影響 seed 本身）
+  await deleteByPattern('case:*');
+  await deleteByPattern('region:*');
+
   const [regions, cases, tags, news, devs, accounts] = await Promise.all([
     prisma.region.count(),
     prisma.case.count(),
@@ -258,4 +264,8 @@ main()
     console.error(e);
     process.exit(1);
   })
-  .finally(() => prisma.$disconnect());
+  .finally(async () => {
+    // ioredis 連線會令 event loop 唔退出，必須斷開
+    await closeRedis();
+    await prisma.$disconnect();
+  });
