@@ -6,6 +6,9 @@ import {
   protectedProcedure,
   publicProcedure,
 } from "@/server/api/trpc";
+import { APPLICATION_STATUSES, type ApplicationStatus } from "@/lib/constants";
+
+const applicationStatusEnum = z.enum(APPLICATION_STATUSES as [ApplicationStatus, ...ApplicationStatus[]]);
 
 const painPointSnapshot = z.object({
   painPointId: z.string(),
@@ -17,7 +20,7 @@ const applicationOutput = z.object({
   applicantName: z.string(),
   applicantContact: z.string(),
   note: z.string().nullable(),
-  status: z.enum(["pending", "processed"]),
+  status: applicationStatusEnum,
   caseId: z.string(),
   caseTitle: z.string(),
   painPointsSnapshot: z.array(painPointSnapshot),
@@ -49,11 +52,11 @@ export const applicationRouter = createTRPCRouter({
   create: publicProcedure
     .input(
       z.object({
-        caseId: z.string(),
-        applicantName: z.string().min(1),
-        applicantContact: z.string().min(1),
-        note: z.string().optional(),
-        painPointIds: z.array(z.string()),
+        caseId: z.string().min(1),
+        applicantName: z.string().min(1).max(80),
+        applicantContact: z.string().min(1).max(180),
+        note: z.string().max(2000).optional(),
+        painPointIds: z.array(z.string()).max(50),
       }),
     )
     .output(applicationOutput)
@@ -72,12 +75,13 @@ export const applicationRouter = createTRPCRouter({
       const validIds = new Set(
         sourceCase.painPoints.map((p) => p.painPoint.id),
       );
-      for (const pid of input.painPointIds) {
+      const uniqueIds = [...new Set(input.painPointIds)];
+      for (const pid of uniqueIds) {
         if (!validIds.has(pid)) {
           throw new TRPCError({ code: "BAD_REQUEST", message: "痛點不屬於該案例" });
         }
       }
-      const snapshot = input.painPointIds.map((pid) => ({
+      const snapshot = uniqueIds.map((pid) => ({
         painPointId: pid,
         title: sourceCase.painPoints.find((p) => p.painPoint.id === pid)!
           .painPoint.title,
@@ -94,10 +98,13 @@ export const applicationRouter = createTRPCRouter({
       });
       return toOutput(row);
     }),
+  // 後台：申請列表（可依狀態篩選）
   list: protectedProcedure
+    .input(z.object({ statuses: z.array(applicationStatusEnum).optional() }).optional())
     .output(z.array(applicationOutput))
-    .query(async ({ ctx }) => {
+    .query(async ({ ctx, input }) => {
       const rows = await ctx.db.application.findMany({
+        where: input?.statuses?.length ? { status: { in: input.statuses } } : undefined,
         orderBy: { createdAt: "desc" },
         include: applicationSelect,
       });
@@ -113,9 +120,9 @@ export const applicationRouter = createTRPCRouter({
       });
       return toOutput(row);
     }),
-  // 狀態切換：pending ↔ processed
+  // 狀態切換（5 狀態：pending → quoted → developing → completed / cancelled）
   update: protectedProcedure
-    .input(z.object({ id: z.string(), status: z.enum(["pending", "processed"]) }))
+    .input(z.object({ id: z.string(), status: applicationStatusEnum }))
     .output(applicationOutput)
     .mutation(async ({ ctx, input }) => {
       const row = await ctx.db.application.update({

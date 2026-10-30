@@ -8,55 +8,68 @@ vi.mock("@/server/auth", () => ({
   signOut: vi.fn(),
 }));
 
-import { appRouter } from "@/server/api/root";
-import { createTRPCContext } from "@/server/api/trpc";
 import { db } from "@/server/db";
-
-type Ctx = Awaited<ReturnType<typeof createTRPCContext>>;
+import { adminCaller, cleanAllTables, publicCaller } from "./helpers";
 
 const REGION_ID = "test-region-1";
-
-const makeCtx = (session: Ctx["session"]): Ctx =>
-  ({ db, session, headers: new Headers() }) as Ctx;
 
 const seedRegion = () =>
   db.region.create({ data: { id: REGION_ID, name: "測試區域", slug: "test" } });
 
+// 案例 content 用新 JSON 契約
+const caseContent = JSON.stringify({
+  lead: "",
+  sections: [{ heading: "", paragraphs: ["內容"] }],
+  result: { label: "", value: "", note: "" },
+});
+
+const seedCase = (data: {
+  id: string;
+  title: string;
+  slug?: string;
+  painPointIds?: string[];
+  solutionIds?: string[];
+}) =>
+  db.case.create({
+    data: {
+      id: data.id,
+      slug: data.slug ?? data.id,
+      title: data.title,
+      content: caseContent,
+      regionId: REGION_ID,
+      painPoints: { create: (data.painPointIds ?? []).map((painPointId) => ({ painPointId })) },
+      solutions: { create: (data.solutionIds ?? []).map((solutionId) => ({ solutionId })) },
+    },
+  });
+
 beforeEach(async () => {
-  // 清空測試資料（先刪子表）
-  await db.$transaction([
-    db.application.deleteMany(),
-    db.casePainPoint.deleteMany(),
-    db.caseSolution.deleteMany(),
-    db.solutionPainPoint.deleteMany(),
-    db.intro.deleteMany(),
-    db.case.deleteMany(),
-    db.solution.deleteMany(),
-    db.painPoint.deleteMany(),
-    db.region.deleteMany(),
-  ]);
+  await cleanAllTables(db);
 });
 
 describe("公開流程", () => {
   it("region.list 回傳區域列表", async () => {
     await seedRegion();
-    const caller = appRouter.createCaller(makeCtx(null));
-    const list = await caller.region.list();
+    const list = await publicCaller().region.list();
     expect(list).toHaveLength(1);
     expect(list[0]?.slug).toBe("test");
   });
 
-  it("case.listPublic 依區域列出案例", async () => {
+  it("case.listPublic 列出全部案例卡片（含 slug/tags）", async () => {
     await seedRegion();
-    await db.case.create({
-      data: { id: "case-1", title: "案例1", content: "內容", regionId: REGION_ID },
-    });
-    const caller = appRouter.createCaller(makeCtx(null));
-    const list = await caller.case.listPublic({ regionSlug: "test" });
+    await seedCase({ id: "case-1", title: "案例1" });
+    const list = await publicCaller().case.listPublic();
     expect(list.map((c) => c.id)).toEqual(["case-1"]);
-    // 不存在的區域回傳空陣列
-    const empty = await caller.case.listPublic({ regionSlug: "nope" });
-    expect(empty).toEqual([]);
+    expect(list[0]?.slug).toBe("case-1");
+  });
+
+  it("case.getPublicBySlug 依 slug 取詳情", async () => {
+    await seedRegion();
+    await seedCase({ id: "case-1", title: "案例1", slug: "my-case" });
+    const detail = await publicCaller().case.getPublicBySlug({ slug: "my-case" });
+    expect(detail?.title).toBe("案例1");
+    expect(detail?.sections).toHaveLength(1);
+    // 不存在的 slug 回傳 null
+    expect(await publicCaller().case.getPublicBySlug({ slug: "nope" })).toBeNull();
   });
 
   it("相關案例：共用痛點或共用方案（排除自己）", async () => {
@@ -70,68 +83,40 @@ describe("公開流程", () => {
     await db.solution.create({
       data: { id: "sol-1", title: "方案X", regionId: REGION_ID },
     });
-    const c1 = await db.case.create({
-      data: {
-        id: "case-1",
-        title: "案例1",
-        content: "內容1",
-        regionId: REGION_ID,
-        painPoints: { create: [{ painPointId: "pp-1" }] },
-        solutions: { create: [{ solutionId: "sol-1" }] },
-      },
+    const c1 = await seedCase({
+      id: "case-1",
+      title: "案例1",
+      painPointIds: ["pp-1"],
+      solutionIds: ["sol-1"],
     });
-    await db.case.create({
-      data: {
-        id: "case-2",
-        title: "案例2",
-        content: "內容2",
-        regionId: REGION_ID,
-        painPoints: { create: [{ painPointId: "pp-1" }] }, // 共用痛點
-      },
-    });
-    await db.case.create({
-      data: {
-        id: "case-3",
-        title: "案例3",
-        content: "內容3",
-        regionId: REGION_ID,
-        solutions: { create: [{ solutionId: "sol-1" }] }, // 共用方案
-      },
-    });
-    await db.case.create({
-      data: {
-        id: "case-4",
-        title: "案例4",
-        content: "內容4",
-        regionId: REGION_ID,
-        painPoints: { create: [{ painPointId: "pp-2" }] }, // 無關
-      },
-    });
+    await seedCase({ id: "case-2", title: "案例2", painPointIds: ["pp-1"] }); // 共用痛點
+    await seedCase({ id: "case-3", title: "案例3", solutionIds: ["sol-1"] }); // 共用方案
+    await seedCase({ id: "case-4", title: "案例4", painPointIds: ["pp-2"] }); // 無關
 
-    const caller = appRouter.createCaller(makeCtx(null));
-    const detail = await caller.case.getPublic({ id: c1.id });
-    expect(detail?.relatedCases.map((r) => r.id).sort()).toEqual([
+    const detail = await publicCaller().case.getPublicBySlug({ slug: c1.slug });
+    expect(detail?.relatedCases.map((r) => r.slug).sort()).toEqual([
       "case-2",
       "case-3",
     ]);
   });
 
-  it("application.create 寫入痛點快照", async () => {
+  it("case.getPublic 回傳案例與痛點（/apply 用）", async () => {
     await seedRegion();
     await db.painPoint.create({
       data: { id: "pp-1", title: "痛點A", regionId: REGION_ID },
     });
-    await db.case.create({
-      data: {
-        id: "case-1",
-        title: "案例1",
-        content: "內容",
-        regionId: REGION_ID,
-        painPoints: { create: [{ painPointId: "pp-1" }] },
-      },
+    const c = await seedCase({ id: "case-1", title: "案例1", painPointIds: ["pp-1"] });
+    const detail = await publicCaller().case.getPublic({ id: c.id });
+    expect(detail?.painPoints.map((p) => p.title)).toEqual(["痛點A"]);
+  });
+
+  it("application.create 寫入痛點快照（狀態 pending）", async () => {
+    await seedRegion();
+    await db.painPoint.create({
+      data: { id: "pp-1", title: "痛點A", regionId: REGION_ID },
     });
-    const caller = appRouter.createCaller(makeCtx(null));
-    const app = await caller.application.create({
+    await seedCase({ id: "case-1", title: "案例1", painPointIds: ["pp-1"] });
+    const app = await publicCaller().application.create({
       caseId: "case-1",
       applicantName: "測試員",
       applicantContact: "t@example.com",
@@ -151,18 +136,9 @@ describe("公開流程", () => {
     await db.painPoint.create({
       data: { id: "pp-2", title: "痛點B", regionId: REGION_ID },
     });
-    await db.case.create({
-      data: {
-        id: "case-1",
-        title: "案例1",
-        content: "內容",
-        regionId: REGION_ID,
-        painPoints: { create: [{ painPointId: "pp-1" }] },
-      },
-    });
-    const caller = appRouter.createCaller(makeCtx(null));
+    await seedCase({ id: "case-1", title: "案例1", painPointIds: ["pp-1"] });
     await expect(
-      caller.application.create({
+      publicCaller().application.create({
         caseId: "case-1",
         applicantName: "測試員",
         applicantContact: "t@example.com",
@@ -170,24 +146,60 @@ describe("公開流程", () => {
       }),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
+
+  it("application.create 拒絕不存在的案例", async () => {
+    await expect(
+      publicCaller().application.create({
+        caseId: "nope",
+        applicantName: "測試員",
+        applicantContact: "t@example.com",
+        painPointIds: [],
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+});
+
+describe("後台申請（5 狀態）", () => {
+  it("application.update 可切換 5 狀態；list 可依狀態篩選", async () => {
+    await seedRegion();
+    await seedCase({ id: "case-1", title: "案例1" });
+    const caller = publicCaller();
+    const app = await caller.application.create({
+      caseId: "case-1",
+      applicantName: "測試員",
+      applicantContact: "t@example.com",
+      painPointIds: [],
+    });
+
+    const admin = adminCaller();
+    for (const status of ["quoted", "developing", "completed", "cancelled"] as const) {
+      const updated = await admin.application.update({ id: app.id, status });
+      expect(updated.status).toBe(status);
+    }
+    await admin.application.update({ id: app.id, status: "pending" });
+
+    const pending = await admin.application.list({ statuses: ["pending"] });
+    expect(pending).toHaveLength(1);
+    const quoted = await admin.application.list({ statuses: ["quoted"] });
+    expect(quoted).toHaveLength(0);
+    const all = await admin.application.list();
+    expect(all).toHaveLength(1);
+  });
 });
 
 describe("權限", () => {
   it("未登入呼叫 protected → UNAUTHORIZED", async () => {
-    const caller = appRouter.createCaller(makeCtx(null));
+    const caller = publicCaller();
     await expect(caller.me()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(
       caller.region.create({ name: "x", slug: "x" }),
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(caller.news.list()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(caller.dashboard.stats()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 
   it("登入後呼叫 protected → 成功", async () => {
-    const caller = appRouter.createCaller(
-      makeCtx({
-        user: { name: "admin" },
-        expires: new Date().toISOString(),
-      }),
-    );
+    const caller = adminCaller();
     const me = await caller.me();
     expect(me.name).toBe("admin");
     await seedRegion();
