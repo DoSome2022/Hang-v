@@ -26,7 +26,8 @@
 ```bash
 mkdir -p /www/wwwroot/hangs
 cd /www/wwwroot/hangs
-# 上傳專案檔（git clone 或 SFTP；git clone 後 git checkout merge-hangs-v2）
+# 上傳專案檔（git clone 或 SFTP；main 分支即最新合併專案）
+git clone git@github.com:DoSome2022/Hang-v.git .
 ```
 
 ## 三、建立 .env
