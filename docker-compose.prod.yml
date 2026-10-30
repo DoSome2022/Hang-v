@@ -1,17 +1,28 @@
-# 生產部署（方案 B：共用 PG shared-db，喺 ../done/shared-db 或伺服器 /srv/shared-db 起動）
+# 生產部署（共用 PG shared-db，喺伺服器 /srv/shared-db 起動）
 # - migrate：每次 compose up 跑一次 prisma migrate deploy（項目有正式 migrations）
-# - app：等 migrate 成功先起；NextAuth admin 帳密嚟自 .env
+# - app：等 migrate 成功 + redis healthy 先起；NextAuth admin 帳密嚟自 .env
+# - app 只綁 127.0.0.1，對外一律經 NPM Proxy Host（覆寫 X-Forwarded-For）
 #
 # .env 嘅 POSTGRES_PASSWORD 要同 shared-db 嘅密碼一致
 # 首次部署前（伺服器）：
 #   docker network create npm-net && docker network connect npm-net <NPM容器名>
 #   cd shared-db && docker compose up -d   ← 共用 PG 先起（會自動建 claude_hangs_db）
+# 首次內容（3 篇案例等）：docker compose exec app npx tsx prisma/seed.ts 或本機 npx prisma db seed
 
 services:
   redis:
-    image: redis:alpine
+    image: redis:8-alpine
     container_name: claude-hangs-redis
     restart: unless-stopped
+    # 唔開對外 port：只喺 npm-net 內供 app 使用
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--maxmemory", "256mb", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
     networks:
       - npm-net
 
@@ -29,13 +40,16 @@ services:
       - npm-net
 
   app:
-    build: .
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-}
     container_name: claude-hangs-app
     restart: unless-stopped
     env_file: .env
     environment:
       DATABASE_URL: postgresql://popo:${POSTGRES_PASSWORD}@shared-db:5432/claude_hangs_db?schema=public
-      # Redis：公開頁快取 + 登入限流（冇設會優雅降級）
+      # Redis：公開頁快取 + 登入限流 + 諮詢佇列（唔設會優雅降級）
       REDIS_URL: redis://redis:6379/0
       # Auth.js v5 喺反向代理後需要信任 proxy 嘅 Host header
       AUTH_TRUST_HOST: "true"
@@ -44,13 +58,24 @@ services:
       HOSTNAME: "0.0.0.0"
     depends_on:
       redis:
-        condition: service_started
+        condition: service_healthy
       migrate:
         condition: service_completed_successfully
-    # 唔開 host port：由 NPM Proxy Host 指向 claude-hangs-app:3000
+    # 只綁本機：對外一律經 NPM 反向代理（覆寫 X-Forwarded-For）
+    ports:
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
     networks:
       - npm-net
 
 networks:
   npm-net:
     external: true
+
+volumes:
+  redis-data:

@@ -1,3 +1,6 @@
+# Dev 環境：db(5432) + db-test(5433) + 可選 redis
+# 本機已有 Redis（localhost:6379）就唔使起 redis；冇就：
+#   docker compose --profile redis up -d redis
 services:
   db:
     image: postgres:16-alpine
@@ -24,6 +27,16 @@ services:
       - "5433:5432"
     volumes:
       - db_test_data:/var/lib/postgresql/data
+
+  # 可選：本機未裝 Redis 時啟用（注意唔好同本機 6379 衝突）
+  redis:
+    image: redis:8-alpine
+    container_name: claude_hangs_redis
+    restart: unless-stopped
+    profiles: ["redis"]
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "no"]
 
 volumes:
   db_data:

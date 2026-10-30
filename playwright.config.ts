@@ -1,4 +1,13 @@
 import { defineConfig } from '@playwright/test';
+import { loadEnvConfig } from '@next/env';
+
+// 自動載入 .env（只填未設定的 key；make test-e2e 已 export 的測試環境變數優先）
+loadEnvConfig(process.cwd());
+
+// 一律偏好測試 DB（直接跑 npx playwright test 亦唔會碰到 dev DB）
+const dbUrl = process.env.DATABASE_URL?.includes('claude_hangs_test')
+  ? process.env.DATABASE_URL
+  : process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL ?? '';
 
 // e2e 前置：scripts/test-e2e.sh 會起 db-test + migrate + seed + build，
 // 再由本檔 webServer 啟動 standalone server。
@@ -20,7 +29,7 @@ export default defineConfig({
     command: 'sh -c "rm -rf .next/standalone/public .next/standalone/.next/static && cp -r public .next/standalone/public && mkdir -p .next/standalone/.next && cp -r .next/static .next/standalone/.next/ && PORT=3107 HOSTNAME=127.0.0.1 node .next/standalone/server.js"',
     env: {
       NODE_ENV: 'production',
-      DATABASE_URL: process.env.DATABASE_URL ?? '',
+      DATABASE_URL: dbUrl,
       AUTH_SECRET: process.env.AUTH_SECRET ?? '',
       AUTH_TRUST_HOST: 'true',
       AUTH_ADMIN_USERNAME: process.env.AUTH_ADMIN_USERNAME ?? '',

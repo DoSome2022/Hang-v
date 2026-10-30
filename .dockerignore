@@ -9,5 +9,13 @@ tests
 scripts
 makefile
 docker-compose.yml
+docker-compose.prod.yml
 .DS_Store
 DEPLOY.md
+README.md
+CLAUDE.md
+AGENTS.md
+test-results
+playwright-report
+coverage
+*.tsbuildinfo
