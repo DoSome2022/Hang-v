@@ -37,7 +37,7 @@ export async function cached<T>(
   ttlSeconds: number,
   fn: () => Promise<T>,
 ): Promise<T> {
-  const redis = getRedis();
+  const redis = await getRedis();
   if (!redis) return fn();
   try {
     const hit = await redis.get(key);
