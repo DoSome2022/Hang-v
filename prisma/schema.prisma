@@ -53,19 +53,30 @@ model PainPoint {
 }
 
 // 案例（公開，card 列表）
+// content 為 JSON 字串：{ lead, sections: [{heading,paragraphs,bullets?}], result: {label,value,note} }
+// （契約見 src/server/case-content.ts；相容舊純文字 content）
 model Case {
   id           String            @id @default(cuid())
+  slug         String            @unique
   title        String
   content      String
+  summary      String            @default("")
+  category     String            @default("")
+  english      String            @default("")
+  excerpt      String            @default("")
+  readTime     String            @default("") @map("read_time")
+  publishedAt  DateTime?         @map("published_at")
   regionId     String            @map("region_id")
   region       Region            @relation(fields: [regionId], references: [id], onDelete: Cascade)
   painPoints   CasePainPoint[]
   solutions    CaseSolution[]
+  tags         CaseTag[]
   applications Application[]
   createdAt    DateTime          @default(now()) @map("created_at")
   updatedAt    DateTime          @updatedAt @map("updated_at")
 
   @@index([regionId])
+  @@index([publishedAt])
   @@map("cases")
 }
 
@@ -105,7 +116,10 @@ model Application {
 
 enum ApplicationStatus {
   pending
-  processed
+  quoted
+  developing
+  completed
+  cancelled
 
   @@map("application_status")
 }
@@ -142,4 +156,151 @@ model SolutionPainPoint {
 
   @@id([solutionId, painPointId])
   @@map("solution_pain_points")
+}
+
+// —— 標籤（三組：行業 industry / 痛點 pain / 對象 audience） ——
+
+model TagGroup {
+  id        String @id @default(cuid())
+  key       String @unique
+  label     String
+  sortOrder Int    @default(0) @map("sort_order")
+  tags      Tag[]
+
+  @@map("tag_groups")
+}
+
+model Tag {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  groupId   String   @map("group_id")
+  group     TagGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  sortOrder Int      @default(0) @map("sort_order")
+  cases     CaseTag[]
+  news      NewsTag[]
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([groupId])
+  @@map("tags")
+}
+
+model CaseTag {
+  caseId    String   @map("case_id")
+  tagId     String   @map("tag_id")
+  case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@id([caseId, tagId])
+  @@map("case_tags")
+}
+
+// —— 最新資訊 ——
+
+enum NewsStatus {
+  draft
+  published
+
+  @@map("news_status")
+}
+
+model News {
+  id          String    @id @default(cuid())
+  title       String
+  summary     String    @default("")
+  category    String    @default("")
+  status      NewsStatus @default(draft)
+  publishedAt DateTime? @map("published_at")
+  tags        NewsTag[]
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([publishedAt])
+  @@map("news")
+}
+
+model NewsTag {
+  newsId    String   @map("news_id")
+  tagId     String   @map("tag_id")
+  news      News     @relation(fields: [newsId], references: [id], onDelete: Cascade)
+  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@id([newsId, tagId])
+  @@map("news_tags")
+}
+
+// —— 開發清單 ——
+
+model DevProject {
+  id        Int        @id @default(autoincrement())
+  name      String
+  client    String
+  status    String     @default("")
+  delivery  DateTime?
+  warranty  DateTime?
+  link      String?
+  meetings  Json       @default("[]") // [{date,text,parts[],people[]}]
+  parts     DevPart[]
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  @@map("dev_projects")
+}
+
+model DevPart {
+  id        String       @id @default(cuid())
+  projectId Int          @map("project_id")
+  project   DevProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  owner     String       @default("")
+  deadline  DateTime?
+  checklist Json         @default("[]") // [{label, done}]
+  sortOrder Int          @default(0) @map("sort_order")
+  comments  DevComment[]
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  @@index([projectId])
+  @@map("dev_parts")
+}
+
+model DevComment {
+  id        String   @id @default(cuid())
+  partId    String   @map("part_id")
+  part      DevPart  @relation(fields: [partId], references: [id], onDelete: Cascade)
+  who       String
+  whenLabel String   @default("") @map("when_label")
+  text      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([partId])
+  @@map("dev_comments")
+}
+
+// —— 帳目 ——
+
+enum AccountKind {
+  quotation
+  invoice
+  receipt
+
+  @@map("account_kind")
+}
+
+model Account {
+  id        String      @id @default(cuid())
+  kind      AccountKind
+  company   String
+  number    String      @unique
+  amount    Int
+  status    String      // 已報 / 待收 / 已收
+  issuedAt  DateTime?   @map("issued_at")
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+
+  @@index([kind])
+  @@map("accounts")
 }
