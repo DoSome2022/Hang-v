@@ -54,6 +54,49 @@ describe("公開流程", () => {
     expect(list[0]?.slug).toBe("test");
   });
 
+  it("region.getPublicBySlug 回傳區域完整內容（介紹/案例卡/痛點/方案）", async () => {
+    await seedRegion();
+    await db.intro.create({
+      data: { id: "intro-1", title: "介紹一", content: "內容一", regionId: REGION_ID, createdAt: new Date("2026-01-01T00:00:00Z") },
+    });
+    await db.intro.create({
+      data: { id: "intro-2", title: "介紹二", content: "內容二", regionId: REGION_ID, createdAt: new Date("2026-01-02T00:00:00Z") },
+    });
+    const group = await db.tagGroup.create({ data: { key: "industry", label: "行業" } });
+    const tag = await db.tag.create({ data: { name: "教育", groupId: group.id } });
+    const c1 = await seedCase({ id: "case-1", title: "案例1" });
+    await db.case.update({
+      where: { id: c1.id },
+      data: { publishedAt: new Date("2026-02-01T00:00:00Z"), category: "教育", excerpt: "摘一" },
+    });
+    const c2 = await seedCase({ id: "case-2", title: "案例2" });
+    await db.case.update({
+      where: { id: c2.id },
+      data: { publishedAt: new Date("2026-03-01T00:00:00Z") },
+    });
+    await db.caseTag.create({ data: { caseId: c1.id, tagId: tag.id } });
+    await db.painPoint.create({ data: { id: "pp-1", title: "痛點A", regionId: REGION_ID } });
+    await db.solution.create({ data: { id: "sol-1", title: "方案X", regionId: REGION_ID } });
+
+    const data = await publicCaller().region.getPublicBySlug({ slug: "test" });
+    expect(data?.name).toBe("測試區域");
+    // intros 按 createdAt asc
+    expect(data?.intros.map((i) => i.title)).toEqual(["介紹一", "介紹二"]);
+    // cases 按 publishedAt desc
+    expect(data?.cases.map((c) => c.slug)).toEqual(["case-2", "case-1"]);
+    expect(data?.cases[0]).toMatchObject({ title: "案例2", tags: [] });
+    expect(data?.cases[1]).toMatchObject({ category: "教育", excerpt: "摘一", tags: ["教育"] });
+    expect(data?.painPoints.map((p) => p.title)).toEqual(["痛點A"]);
+    expect(data?.solutions.map((s) => s.title)).toEqual(["方案X"]);
+  });
+
+  it("region.getPublicBySlug 唔存在 slug 回 null；空區域回空陣列", async () => {
+    expect(await publicCaller().region.getPublicBySlug({ slug: "nope" })).toBeNull();
+    await db.region.create({ data: { id: "empty-region", name: "空區域", slug: "empty" } });
+    const data = await publicCaller().region.getPublicBySlug({ slug: "empty" });
+    expect(data).toMatchObject({ intros: [], cases: [], painPoints: [], solutions: [] });
+  });
+
   it("case.listPublic 列出全部案例卡片（含 slug/tags）", async () => {
     await seedRegion();
     await seedCase({ id: "case-1", title: "案例1" });

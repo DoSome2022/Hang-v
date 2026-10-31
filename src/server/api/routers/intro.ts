@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
+import { deleteByPattern } from "@/server/redis";
 
 const introOutput = z.object({
   id: z.string(),
@@ -32,20 +33,27 @@ export const introRouter = createTRPCRouter({
     .input(introCreateInput)
     .output(introOutput)
     .mutation(async ({ ctx, input }) => {
-      return ctx.db.intro.create({ data: input });
+      const created = await ctx.db.intro.create({ data: input });
+      // region 公開頁 aggregate 含 intro
+      await deleteByPattern("region:*");
+      return created;
     }),
   update: protectedProcedure
     .input(introCreateInput.extend({ id: z.string() }))
     .output(introOutput)
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
-      return ctx.db.intro.update({ where: { id }, data });
+      const updated = await ctx.db.intro.update({ where: { id }, data });
+      // update 可改 regionId——所有 region 頁失效最安全
+      await deleteByPattern("region:*");
+      return updated;
     }),
   delete: protectedProcedure
     .input(z.object({ id: z.string() }))
     .output(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       await ctx.db.intro.delete({ where: { id: input.id } });
+      await deleteByPattern("region:*");
       return { id: input.id };
     }),
 });

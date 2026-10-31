@@ -61,8 +61,10 @@ export const solutionRouter = createTRPCRouter({
         data: { ...data, painPoints: painPointsCreate(painPointIds) },
         include: { painPoints: { select: { painPointId: true } } },
       });
-      // 案例詳情快取內含方案資料 + 相關案例依賴方案關聯 → 一併失效
+      // 案例詳情快取內含方案資料 + 相關案例依賴方案關聯 → 一併失效；
+      // region 公開頁亦顯示方案 chips
       await deleteByPattern("case:*");
+      await deleteByPattern("region:*");
       const { painPoints, ...rest } = row;
       return { ...rest, painPointIds: painPoints.map((p) => p.painPointId) };
     }),
@@ -77,6 +79,7 @@ export const solutionRouter = createTRPCRouter({
         include: { painPoints: { select: { painPointId: true } } },
       });
       await deleteByPattern("case:*");
+      await deleteByPattern("region:*");
       const { painPoints, ...rest } = row;
       return { ...rest, painPointIds: painPoints.map((p) => p.painPointId) };
     }),
@@ -86,6 +89,7 @@ export const solutionRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       await ctx.db.solution.delete({ where: { id: input.id } });
       await deleteByPattern("case:*");
+      await deleteByPattern("region:*");
       return { id: input.id };
     }),
 });

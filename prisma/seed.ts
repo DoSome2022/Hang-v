@@ -29,7 +29,8 @@ async function ensureTagGroups() {
   for (const g of seedTagGroups) {
     const row = await prisma.tagGroup.upsert({
       where: { key: g.key },
-      update: { label: g.label },
+      // 唔覆寫 label：後台可主動改名，重跑 seed 唔應該 revert 後台修改
+      update: {},
       create: { key: g.key, label: g.label, sortOrder: g.sortOrder },
     });
     groups.set(g.key, row.id);

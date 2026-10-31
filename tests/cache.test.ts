@@ -40,4 +40,30 @@ describe("cache serialize / parse roundtrip", () => {
     const value = { a: null, b: [{ c: 1, d: "x" }] };
     expect(parseFromCache(serializeForCache(value))).toEqual(value);
   });
+
+  it("巢狀 Date（region aggregate 案例卡）往返後保持 Date 型別", () => {
+    const value = {
+      id: "r1",
+      name: "示範區域",
+      slug: "service-demo",
+      intros: [{ id: "i1", title: "顧問服務示範", content: "內容" }],
+      cases: [
+        {
+          id: "c1",
+          slug: "case-1",
+          title: "案例",
+          publishedAt: new Date("2026-10-01T00:00:00.000Z"),
+          tags: ["教育"],
+        },
+      ],
+      painPoints: [],
+      solutions: [],
+    };
+
+    const revived = parseFromCache(serializeForCache(value)) as typeof value;
+    expect(revived.cases[0]!.publishedAt).toBeInstanceOf(Date);
+    expect(revived.cases[0]!.publishedAt.toISOString()).toBe(
+      "2026-10-01T00:00:00.000Z",
+    );
+  });
 });

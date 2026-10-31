@@ -37,6 +37,40 @@ describe("tag router", () => {
     await admin.tag.delete({ id: created.id });
     expect(await db.tag.count()).toBe(0);
   });
+
+  it("groupCreate 自動生成 key 同排最尾 sortOrder", async () => {
+    const admin = adminCaller();
+    await db.tagGroup.create({ data: { key: "industry", label: "行業", sortOrder: 0 } });
+    const created = await admin.tag.groupCreate({ label: "地區" });
+    expect(created.label).toBe("地區");
+    expect(created.key).toMatch(/^g-/);
+    expect(created.sortOrder).toBe(1);
+
+    const groups = await admin.tag.groupList();
+    expect(groups.map((g) => g.label)).toEqual(["行業", "地區"]);
+  });
+
+  it("groupUpdate 改名", async () => {
+    const admin = adminCaller();
+    const group = await db.tagGroup.create({ data: { key: "industry", label: "行業" } });
+    const updated = await admin.tag.groupUpdate({ id: group.id, label: "行業別" });
+    expect(updated.label).toBe("行業別");
+    expect(updated.tags).toEqual([]);
+  });
+
+  it("groupDelete cascade 刪除組內 tags", async () => {
+    const admin = adminCaller();
+    const group = await db.tagGroup.create({ data: { key: "pain", label: "痛點" } });
+    await db.tag.create({ data: { name: "網站慢", groupId: group.id } });
+    await admin.tag.groupDelete({ id: group.id });
+    expect(await db.tagGroup.count()).toBe(0);
+    expect(await db.tag.count()).toBe(0);
+  });
+
+  it("groupCreate 空 label 被拒絕", async () => {
+    const admin = adminCaller();
+    await expect(admin.tag.groupCreate({ label: "" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
 });
 
 describe("news router", () => {

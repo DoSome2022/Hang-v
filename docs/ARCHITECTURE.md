@@ -43,7 +43,8 @@ Account（帳目）：quotation / invoice / receipt
 
 | 端點 | 快取 key | TTL | 失效 |
 | --- | --- | --- | --- |
-| region.list / get / getById | `region:*` | 300s | region 寫入 |
+| region.list / get | `region:*` | 300s | region 寫入 |
+| region.getPublicBySlug | `region:public:slug:<slug>` | 300s | region / intro / case / painPoint / solution / tag 寫入 |
 | case.listPublic / getPublicBySlug / getPublic | `case:*` | 120-300s | case/painPoint/solution/tag 寫入、region 刪除 |
 | 諮詢限流 | `hangs:consult:rl:*` | 600s/3600s | 自然過期 |
 | 登入限流 | `hangs:login:fail:<sha256(ip)>` | 900s | 成功登入清除 |
@@ -55,9 +56,10 @@ Account（帳目）：quotation / invoice / receipt
 ## 公開前台（(public) route group）
 
 - 57 個行銷頁靜態預渲染（generateStaticParams + dynamicParams=false）
-- `/cases`、`/cases/[slug]`、`/apply`：`dynamic = 'force-dynamic'`，經 `createCaller()` 讀 DB——**build 唔打 DB**（驗證：假 DATABASE_URL build）
+- `/cases`、`/cases/[slug]`、`/r/[slug]`、`/apply`：`dynamic = 'force-dynamic'`，經 `createCaller()` 讀 DB——**build 唔打 DB**（驗證：假 DATABASE_URL build）
+- `/r/[slug]` 區域公開頁：`region.getPublicBySlug` aggregate（intro + 區內案例卡 + 痛點/方案 chips），`null → notFound()`；**冇 `/r` index route**，breadcrumb 只用首頁 + 區域名稱；入口有 header「區域服務」選單 + footer「區域服務」欄（共用 `src/lib/use-regions.ts`，client-side fetch `region.list`，SSR/build 唔 fetch——保住全站 SSG；冇區域/失敗就隱藏）、admin 區域列表「查看公開頁」連結同 sitemap
 - `/apply` 資料流：案例頁 ApplyLink 寫 localStorage `consult_apply` → 表單（痛點預設全選）→ `application.create`（驗證痛點屬於案例、寫快照）→ 清 localStorage
-- sitemap 動態加入 DB 案例（DB 掛咗仍回 200）
+- sitemap 動態加入 DB 案例與區域頁（DB 掛咗仍回 200）
 - 相關案例判定：共用任一 tag / 痛點 / 方案（排除自己，最多 3）
 
 ## Admin 後台（(admin) route group）

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Pencil, Plus } from 'lucide-react';
+import { ExternalLink, Pencil, Plus } from 'lucide-react';
 import { trpc } from '@/trpc/react';
 import { formatDateTime } from '@/lib/format';
 import {
@@ -70,6 +70,14 @@ export default function RegionsPage() {
                     <td className={`${tdClass} whitespace-nowrap`}>{formatDateTime(r.createdAt)}</td>
                     <td className={tdClass}>
                       <div className="flex items-center gap-2">
+                        <Link
+                          href={`/r/${r.slug}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                        >
+                          <ExternalLink size={13} /> 查看公開頁
+                        </Link>
                         <Link href={`/admin/regions/${r.id}/edit`} className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50">
                           <Pencil size={13} /> 編輯
                         </Link>

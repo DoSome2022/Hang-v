@@ -34,8 +34,10 @@ export const painPointRouter = createTRPCRouter({
     .output(painPointOutput)
     .mutation(async ({ ctx, input }) => {
       const created = await ctx.db.painPoint.create({ data: input });
-      // 案例詳情快取內含痛點資料 + 相關案例依賴痛點關聯 → 一併失效
+      // 案例詳情快取內含痛點資料 + 相關案例依賴痛點關聯 → 一併失效；
+      // region 公開頁亦顯示痛點 chips
       await deleteByPattern("case:*");
+      await deleteByPattern("region:*");
       return created;
     }),
   update: protectedProcedure
@@ -45,6 +47,7 @@ export const painPointRouter = createTRPCRouter({
       const { id, ...data } = input;
       const updated = await ctx.db.painPoint.update({ where: { id }, data });
       await deleteByPattern("case:*");
+      await deleteByPattern("region:*");
       return updated;
     }),
   delete: protectedProcedure
@@ -53,6 +56,7 @@ export const painPointRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       await ctx.db.painPoint.delete({ where: { id: input.id } });
       await deleteByPattern("case:*");
+      await deleteByPattern("region:*");
       return { id: input.id };
     }),
 });

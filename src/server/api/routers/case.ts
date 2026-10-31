@@ -9,24 +9,13 @@ import { cached } from "@/server/cache";
 import { deleteByPattern } from "@/server/redis";
 import { parseCaseContent, serializeCaseContent, caseSectionSchema, caseResultSchema } from "@/server/case-content";
 import { ensureTagIds } from "@/server/tags";
+import { caseCardOutput, caseCardSelect, toCaseCard } from "../case-card";
 
 // 快取 TTL：公開讀（秒）
 const CASE_LIST_TTL = 2 * 60;
 const CASE_DETAIL_TTL = 5 * 60;
 
 // —— 公開前台 ——
-
-const caseCardOutput = z.object({
-  id: z.string(),
-  slug: z.string(),
-  title: z.string(),
-  category: z.string(),
-  excerpt: z.string(),
-  summary: z.string(),
-  readTime: z.string(),
-  publishedAt: z.date().nullable(),
-  tags: z.array(z.string()),
-});
 
 const relatedCaseOutput = z.object({
   slug: z.string(),
@@ -192,22 +181,9 @@ export const caseRouter = createTRPCRouter({
       return cached("case:public:list", CASE_LIST_TTL, async () => {
         const rows = await ctx.db.case.findMany({
           orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
-          select: {
-            id: true,
-            slug: true,
-            title: true,
-            category: true,
-            excerpt: true,
-            summary: true,
-            readTime: true,
-            publishedAt: true,
-            tags: { select: { tag: { select: { name: true } } } },
-          },
+          select: caseCardSelect,
         });
-        return rows.map(({ tags, ...rest }) => ({
-          ...rest,
-          tags: tags.map((t) => t.tag.name),
-        }));
+        return rows.map(toCaseCard);
       });
     }),
   // 公開：案例詳情（依 slug；快取 5 分鐘）
@@ -344,6 +320,8 @@ export const caseRouter = createTRPCRouter({
         include: relationSelect,
       });
       await deleteByPattern("case:*");
+      // region 公開頁 aggregate 含區內案例卡
+      await deleteByPattern("region:*");
       return toAdminOutput(row);
     }),
   update: protectedProcedure
@@ -357,6 +335,8 @@ export const caseRouter = createTRPCRouter({
         include: relationSelect,
       });
       await deleteByPattern("case:*");
+      // update 可改 region/tags/發佈日期
+      await deleteByPattern("region:*");
       return toAdminOutput(row);
     }),
   delete: protectedProcedure
@@ -365,6 +345,7 @@ export const caseRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       await ctx.db.case.delete({ where: { id: input.id } });
       await deleteByPattern("case:*");
+      await deleteByPattern("region:*");
       return { id: input.id };
     }),
 });

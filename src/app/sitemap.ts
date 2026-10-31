@@ -3,7 +3,7 @@ import { siteUrl } from '@/lib/site';
 import { categories } from '@/lib/service-catalog';
 import { createCaller } from '@/server/api/caller';
 
-// DB 案例動態加入 sitemap；DB 掛咗仍回 200（只少案例 URL）
+// DB 案例與區域動態加入 sitemap；DB 掛咗仍回 200（只少 DB URL）
 export const dynamic = 'force-dynamic';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -25,6 +25,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   } catch (error) {
     console.error('[sitemap] 案例資料不可用', error);
+  }
+  try {
+    const caller = await createCaller();
+    const regions = await caller.region.list();
+    for (const r of regions) {
+      entries.push({ path: `/r/${r.slug}`, priority: 0.7 });
+    }
+  } catch (error) {
+    console.error('[sitemap] 區域資料不可用', error);
   }
   for (const category of categories) {
     entries.push({ path: `/services/${category.slug}`, priority: 0.7 });

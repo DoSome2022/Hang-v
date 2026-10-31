@@ -8,7 +8,7 @@
 - 前端：原生 Tailwind CSS v4 響應式設計；Lucide 圖示
 - 後端：Prisma 6 + PostgreSQL、tRPC 11 + Zod、NextAuth v5（單一 admin）
 - Redis 8：公開頁快取、登入限流、諮詢提交限流與排隊（未設定時優雅降級）
-- 靜態預先渲染 57 個行銷頁；`/cases`、`/apply`、後台為動態
+- 靜態預先渲染 57 個行銷頁；`/cases`、`/r/[slug]`、`/apply`、後台為動態
 - Vitest（後端整合測試）+ Playwright（瀏覽器 e2e）
 - Docker（standalone 輸出、non-root）+ 生產 compose（app + migrate + redis，經 NPM 反向代理）
 
@@ -52,6 +52,7 @@ make dev / make db-reset / make db-seed / make clean
 | `/services`、`/services/[category]`、`/services/[category]/[service]` | 服務介紹（6 分類 19 服務，全靜態） |
 | `/choose-service` | 選擇服務互動頁 |
 | `/cases`、`/cases/[slug]` | **真實案例（讀資料庫，admin 建立即公開）** |
+| `/r/[slug]` | **區域公開頁（DB 驅動；區域名稱、公司介紹、區內案例＋申請、痛點／方案、諮詢 CTA）** |
 | `/apply` | **案例申請（痛點勾選 → 寫入 Application）** |
 | `/admin/login` | 後台登入（NextAuth，帳密在 `.env`） |
 | `/admin/**` | 後台：dashboard、申請（5 狀態）、案例/痛點/方案/區域/介紹/最新資訊/標籤/開發清單/帳目 |
@@ -88,7 +89,7 @@ curl http://localhost:3000/api/health
 
 - 每頁 metadata（title/description/canonical/OG/Twitter）、動態品牌分享圖 `/opengraph-image`
 - Organization / WebSite / Service / FAQPage / Article / CollectionPage / BreadcrumbList JSON-LD
-- sitemap 含 DB 案例；robots 依 `NEXT_PUBLIC_SITE_URL`（未設定時全站 noindex）
+- sitemap 含 DB 案例與區域頁；robots 依 `NEXT_PUBLIC_SITE_URL`（未設定時全站 noindex）
 - 案例詳情頁 Article schema（datePublished/keywords）
 
 ## 上線前需要確認

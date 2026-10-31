@@ -22,6 +22,7 @@ import {
 import { Brand, Consultation, useHydrated } from './shared-ui';
 import { categories } from '@/lib/service-catalog';
 import { categoryIcons } from './catalog-icons';
+import { useRegions } from '@/lib/use-regions';
 import { buttonClass, buttonPrimaryClass } from '@/lib/ui';
 export const solutionLinks = [
   { href: '/solutions/solo', label: '一人公司', note: '讓 AI 成為你的日常助手', icon: UserRound },
@@ -165,10 +166,14 @@ function Header() {
   const ready = useHydrated();
   const mobileButton = useRef<HTMLButtonElement>(null);
   const dropdown = useRef<HTMLDetailsElement>(null);
+  const regionsDropdown = useRef<HTMLDetailsElement>(null);
   const header = useRef<HTMLElement>(null);
+  // 區域列表 client-side 讀取；冇區域/失敗 → null（選單項目隱藏）
+  const regions = useRegions();
   const closeMenus = () => {
     setMobileOpen(false);
     if (dropdown.current) dropdown.current.open = false;
+    if (regionsDropdown.current) regionsDropdown.current.open = false;
   };
 
   // 手機選單開啟時鎖 body scroll
@@ -187,6 +192,7 @@ function Header() {
     const pointer = (event: PointerEvent) => {
       if (!header.current?.contains(event.target as Node)) {
         if (dropdown.current) dropdown.current.open = false;
+        if (regionsDropdown.current) regionsDropdown.current.open = false;
         setMobileOpen(false);
       }
     };
@@ -195,6 +201,10 @@ function Header() {
       if (dropdown.current?.open) {
         dropdown.current.open = false;
         dropdown.current.querySelector('summary')?.focus();
+      }
+      if (regionsDropdown.current?.open) {
+        regionsDropdown.current.open = false;
+        regionsDropdown.current.querySelector('summary')?.focus();
       }
       if (mobileOpen) {
         setMobileOpen(false);
@@ -205,8 +215,9 @@ function Header() {
     const resize = () => {
       if (media.matches) {
         setMobileOpen(false);
-      } else if (dropdown.current) {
-        dropdown.current.open = false;
+      } else {
+        if (dropdown.current) dropdown.current.open = false;
+        if (regionsDropdown.current) regionsDropdown.current.open = false;
       }
     };
     document.addEventListener('pointerdown', pointer);
@@ -264,6 +275,35 @@ function Header() {
           <Link href="/cases" aria-current={current('/cases')} className={`${navLinkClass} ${pathname.startsWith('/cases') ? 'text-green-dark after:scale-100' : ''}`} onClick={closeMenus}>
             真實案例
           </Link>
+          {regions && regions.length > 0 && (
+            <details className="group relative" ref={regionsDropdown}>
+              <summary className={`flex cursor-pointer list-none items-center gap-2 py-[29px] text-[13px] text-[#58616d] transition-colors [&::-webkit-details-marker]:hidden hover:text-green-dark group-open:text-green-dark [&>svg]:transition-transform [&>svg]:duration-200 group-open:[&>svg]:rotate-180 ${pathname.startsWith('/r/') ? 'text-green-dark' : ''}`}>
+                區域服務
+                <ChevronDown size={13} />
+              </summary>
+              <div className="absolute left-1/2 top-[70px] z-[45] w-[300px] -translate-x-1/2 rounded-xl border border-[#e0e8db] bg-white p-[18px] shadow-[0_18px_55px_#1935231c]">
+                <p className="px-2 pb-3 text-[13px] text-[#65735b]">
+                  區域專屬服務頁
+                  <span className="mt-[3px] block font-[Arial,sans-serif] text-[12px] tracking-[1.6px] text-[#9ba68d]">REGION SERVICES</span>
+                </p>
+                {regions.map((region) => (
+                  <Link
+                    key={region.id}
+                    href={`/r/${region.slug}`}
+                    aria-current={pathname === `/r/${region.slug}` ? 'page' : undefined}
+                    onClick={closeMenus}
+                    className="my-[3px] flex items-center gap-3 rounded-[7px] p-[12px_9px] hover:bg-[#f0f6e9] aria-[current=page]:bg-[#f0f6e9]"
+                  >
+                    <span>
+                      <strong className="block text-[12px] font-medium text-navy">{region.name}</strong>
+                      <small className="mt-[2px] block text-[12px] text-[#7e8a72]">公司介紹・真實案例・對應方案</small>
+                    </span>
+                    <ArrowUpRight size={15} className="ml-auto text-[#829775]" />
+                  </Link>
+                ))}
+              </div>
+            </details>
+          )}
         </nav>
         <div className="flex items-center gap-[10px] max-[700px]:gap-[5px]">
           <ConsultButton className="bg-navy p-4 text-[12px] font-medium text-[#334033] shadow-none hover:text-white max-[700px]:min-h-[36px] max-[700px]:gap-[6px] max-[700px]:px-[10px] max-[700px]:py-[9px] max-[700px]:text-[12px] max-[370px]:gap-1 max-[370px]:px-2 max-[370px]:text-[13px]" />
@@ -322,6 +362,19 @@ function Header() {
           真實案例
           <ArrowUpRight size={15} />
         </Link>
+        {regions && regions.length > 0 && (
+          <>
+            <p className="mt-[14px] p-[7px_8px] text-[12px] text-[#6c8659]">
+              區域服務 <span className="ml-[10px] font-[Arial,sans-serif] text-[12px] tracking-[1px] text-[#98a889]">REGIONS</span>
+            </p>
+            {regions.map((region) => (
+              <Link key={region.id} href={`/r/${region.slug}`} aria-current={current(`/r/${region.slug}`)} onClick={closeMenus} className="flex min-h-[45px] items-center justify-between border-b border-[#eef1e9] p-[10px_8px] text-[13px] aria-[current=page]:bg-[#f3f8ec] aria-[current=page]:text-green-dark">
+                {region.name}
+                <ArrowUpRight size={15} />
+              </Link>
+            ))}
+          </>
+        )}
         {categories.map((category) => (
           <details className="border-b border-[#e7edde]" key={category.slug}>
             <summary className="flex cursor-pointer list-none items-center gap-[11px] p-[13px_4px] text-[15px] text-[#33402a] [&::-webkit-details-marker]:hidden">
@@ -366,10 +419,12 @@ function Header() {
   );
 }
 function Footer() {
+  // 區域列表 client-side 讀取；冇區域/失敗 → null（欄位隱藏）
+  const regions = useRegions();
   return (
     <footer className="border-t border-line pt-[53px] max-[700px]:pt-[37px]">
       <div className="mx-auto max-w-[1256px] px-10 max-[1100px]:px-8">
-        <div className="grid grid-cols-[1.55fr_1fr_1fr_0.65fr] gap-[35px] pb-[45px] max-[1100px]:gap-[25px] max-[900px]:grid-cols-[1.4fr_1fr_1fr] max-[900px]:gap-8 max-[700px]:grid-cols-2 max-[700px]:gap-x-5 max-[700px]:gap-y-[28px] max-[700px]:pb-[30px]">
+        <div className="grid grid-cols-[1.55fr_1fr_1fr_0.65fr_0.85fr] gap-[35px] pb-[45px] max-[1100px]:gap-[25px] max-[900px]:grid-cols-[1.4fr_1fr_1fr_0.8fr] max-[900px]:gap-8 max-[700px]:grid-cols-2 max-[700px]:gap-x-5 max-[700px]:gap-y-[28px] max-[700px]:pb-[30px]">
           <div className="max-[700px]:col-span-2">
             <Brand compact />
             <p className="mt-5 text-[12px] text-[#6e7b62] max-[700px]:mt-[15px] max-[700px]:text-[13px]">讓科技，成為你的成長力。</p>
@@ -396,6 +451,16 @@ function Footer() {
             <Link href="/cases" className="bg-transparent p-0 text-left text-[12px] text-[#8b9482] hover:text-green-dark">真實案例</Link>
             <Link href="/services#faq" className="bg-transparent p-0 text-left text-[12px] text-[#8b9482] hover:text-green-dark">常見問題</Link>
           </div>
+          {regions && regions.length > 0 && (
+            <div className="flex flex-col items-start gap-3 pt-1 max-[700px]:gap-[10px]">
+              <h3 className="mb-2 text-[13px] font-[550] max-[700px]:mb-[5px] max-[700px]:text-[12px]">區域服務</h3>
+              {regions.map((region) => (
+                <Link key={region.id} href={`/r/${region.slug}`} className="bg-transparent p-0 text-left text-[12px] text-[#8b9482] hover:text-green-dark">
+                  {region.name}
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
         <div className="flex min-h-[65px] items-center justify-between gap-5 text-[13px] text-[#99a18f] max-[700px]:min-h-[75px] max-[700px]:flex-wrap max-[700px]:gap-[15px] max-[700px]:py-[18px]">
           <span className="font-[Arial,var(--font-sans)] tracking-[0.2px] max-[700px]:basis-full max-[700px]:text-[12px] max-[700px]:tracking-normal">
