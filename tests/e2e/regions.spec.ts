@@ -26,9 +26,8 @@ test('區域公開頁顯示完整內容', async ({ page }) => {
   await expect(page.getByText('裝修公司項目管理', { exact: false })).toBeVisible();
   await expect(page.getByText('傳統五金店上網', { exact: false })).toBeVisible();
   await expect(page.getByRole('link', { name: '申請' })).toHaveCount(3);
-  // 痛點 / 方案 chips
+  // 痛點 chips（方案已改做公共數據，唔再喺區域頁顯示）
   await expect(page.getByText('排堂計糧亂', { exact: true })).toBeVisible();
-  await expect(page.getByText('導師管理（課表／點名）', { exact: true })).toBeVisible();
   // 底部 CTA（header 都有 ConsultButton，用 #contact scope）
   await expect(page.locator('#contact')).toBeVisible();
 });
@@ -42,26 +41,6 @@ test('區域頁申請連結寫入 localStorage 並導向 /apply', async ({ page 
   expect(stored).not.toBeNull();
   const parsed = JSON.parse(stored!);
   expect(parsed).toMatchObject({ caseId: expect.any(String), title: expect.any(String) });
-});
-
-test('header 區域服務選單導向區域頁', async ({ page }) => {
-  await page.goto('/');
-  // 區域列表係 client-side fetch，hydration 後先出現選單
-  const summary = page.locator('header summary', { hasText: '區域服務' });
-  await expect(summary).toBeVisible();
-  await summary.click();
-  const dropdown = summary.locator('xpath=..');
-  await expect(dropdown).toHaveAttribute('open', '');
-  await dropdown.getByRole('link', { name: /示範區域/ }).click();
-  await expect(page).toHaveURL(/\/r\/service-demo$/);
-});
-
-test('footer 區域服務欄導向區域頁', async ({ page }) => {
-  await page.goto('/');
-  const link = page.locator('footer').getByRole('link', { name: /示範區域/ });
-  await expect(link).toBeVisible();
-  await link.click();
-  await expect(page).toHaveURL(/\/r\/service-demo$/);
 });
 
 test('不存在的區域回 404', async ({ request }) => {
@@ -94,9 +73,9 @@ test('admin 區域列表有「查看公開頁」連結', async ({ page }) => {
   await expect(link).toHaveAttribute('target', '_blank');
 });
 
-test('sitemap 包含區域頁', async ({ request }) => {
+test('sitemap 唔再包含區域頁', async ({ request }) => {
   const response = await request.get('/sitemap.xml');
   expect(response.status()).toBe(200);
   const body = await response.text();
-  expect(body).toContain('/r/service-demo');
+  expect(body).not.toContain('/r/service-demo');
 });

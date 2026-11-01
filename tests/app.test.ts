@@ -76,7 +76,6 @@ describe("公開流程", () => {
     });
     await db.caseTag.create({ data: { caseId: c1.id, tagId: tag.id } });
     await db.painPoint.create({ data: { id: "pp-1", title: "痛點A", regionId: REGION_ID } });
-    await db.solution.create({ data: { id: "sol-1", title: "方案X", regionId: REGION_ID } });
 
     const data = await publicCaller().region.getPublicBySlug({ slug: "test" });
     expect(data?.name).toBe("測試區域");
@@ -87,14 +86,13 @@ describe("公開流程", () => {
     expect(data?.cases[0]).toMatchObject({ title: "案例2", tags: [] });
     expect(data?.cases[1]).toMatchObject({ category: "教育", excerpt: "摘一", tags: ["教育"] });
     expect(data?.painPoints.map((p) => p.title)).toEqual(["痛點A"]);
-    expect(data?.solutions.map((s) => s.title)).toEqual(["方案X"]);
   });
 
   it("region.getPublicBySlug 唔存在 slug 回 null；空區域回空陣列", async () => {
     expect(await publicCaller().region.getPublicBySlug({ slug: "nope" })).toBeNull();
     await db.region.create({ data: { id: "empty-region", name: "空區域", slug: "empty" } });
     const data = await publicCaller().region.getPublicBySlug({ slug: "empty" });
-    expect(data).toMatchObject({ intros: [], cases: [], painPoints: [], solutions: [] });
+    expect(data).toMatchObject({ intros: [], cases: [], painPoints: [] });
   });
 
   it("case.listPublic 列出全部案例卡片（含 slug/tags）", async () => {
@@ -124,7 +122,7 @@ describe("公開流程", () => {
       data: { id: "pp-2", title: "痛點B", regionId: REGION_ID },
     });
     await db.solution.create({
-      data: { id: "sol-1", title: "方案X", regionId: REGION_ID },
+      data: { id: "sol-1", title: "方案X" },
     });
     const c1 = await seedCase({
       id: "case-1",

@@ -24,7 +24,8 @@ const regionCreateInput = z.object({
   slug: z.string().min(1),
 });
 
-// 公開區域頁 aggregate：region + intros + 區內案例卡 + 痛點/方案 chips
+// 公開區域頁 aggregate：region + intros + 區內案例卡 + 痛點 chips
+// （方案係公共數據，唔跟區域，所以唔喺 aggregate 內）
 const publicRegionOutput = z.object({
   id: z.string(),
   name: z.string(),
@@ -32,7 +33,6 @@ const publicRegionOutput = z.object({
   intros: z.array(z.object({ id: z.string(), title: z.string(), content: z.string() })),
   cases: z.array(caseCardOutput),
   painPoints: z.array(z.object({ id: z.string(), title: z.string() })),
-  solutions: z.array(z.object({ id: z.string(), title: z.string() })),
 });
 
 export const regionRouter = createTRPCRouter({
@@ -72,10 +72,6 @@ export const regionRouter = createTRPCRouter({
               select: caseCardSelect,
             },
             painPoints: {
-              orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-              select: { id: true, title: true },
-            },
-            solutions: {
               orderBy: [{ createdAt: "asc" }, { id: "asc" }],
               select: { id: true, title: true },
             },

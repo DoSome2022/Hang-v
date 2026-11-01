@@ -64,22 +64,26 @@ describe("region 公開頁快取失效", () => {
 
     deleteByPatternMock.mockClear();
     const sol = await db.solution.create({
-      data: { title: "方案", regionId: "r1" },
+      data: { title: "方案" },
     });
     await admin.solution.update({
       id: sol.id,
       title: "方案2",
-      regionId: "r1",
       painPointIds: [],
     });
     expect(calledPatterns()).toEqual(["case:*", "region:*"]);
   });
 
-  it("tag.update 失效 case:* 與 region:*", async () => {
+  it("tag.update 失效 case:* / region:* / news:*", async () => {
     const group = await db.tagGroup.create({ data: { key: "pain", label: "痛點" } });
     const tag = await db.tag.create({ data: { name: "網站慢", groupId: group.id } });
     await adminCaller().tag.update({ id: tag.id, name: "網站很慢" });
-    expect(calledPatterns()).toEqual(["case:*", "region:*"]);
+    expect(calledPatterns()).toEqual(["case:*", "news:*", "region:*"]);
+  });
+
+  it("news.create 失效 news:*", async () => {
+    await adminCaller().news.create({ slug: "n1", title: "資訊", status: "published" });
+    expect(calledPatterns()).toEqual(["news:*"]);
   });
 
   it("catalog serviceCreate 失效 catalog:*", async () => {

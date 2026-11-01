@@ -27,15 +27,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
   try {
     const caller = await createCaller();
-    const regions = await caller.region.list();
-    for (const r of regions) {
-      entries.push({ path: `/r/${r.slug}`, priority: 0.7 });
-    }
-  } catch (error) {
-    console.error('[sitemap] 區域資料不可用', error);
-  }
-  try {
-    const caller = await createCaller();
     const catalog = await caller.catalog.listCategories();
     for (const category of catalog) {
       entries.push({ path: `/services/${category.slug}`, priority: 0.7 });
@@ -43,6 +34,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   } catch (error) {
     console.error('[sitemap] 服務目錄資料不可用', error);
+  }
+  try {
+    const caller = await createCaller();
+    const news = await caller.news.listPublic();
+    entries.push({ path: '/news', priority: 0.7 });
+    for (const n of news) {
+      entries.push({ path: `/news/${n.slug}`, priority: 0.6 });
+    }
+  } catch (error) {
+    console.error('[sitemap] 最新資訊資料不可用', error);
   }
   return entries.map((entry) => ({ url: `${siteUrl}${entry.path}`, changeFrequency: 'monthly', priority: entry.priority }));
 }

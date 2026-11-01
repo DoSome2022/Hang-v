@@ -4,12 +4,15 @@
 
 ```
 Region（區域）
-  ├─ 含多個 Case / Solution / PainPoint / Intro
+  ├─ 含多個 Case / PainPoint / Intro
   └─ 各內容實體皆有 regionId 外鍵
+
+Solution（方案）係公共數據：唔跟區域，俾所有案例引用
 
 TagGroup（標籤群組：industry 行業 / pain 痛點 / audience 對象）
   └─ Tag（name unique）
       ├─ CaseTag（案例 ↔ 標籤，M2M）
+      ├─ SolutionTag（方案 ↔ 標籤，M2M）
       └─ NewsTag（資訊 ↔ 標籤，M2M）
 
 PainPoint（痛點）↔ Case（M2M）↔ Solution（M2M）
@@ -19,7 +22,7 @@ Application（申請）
   ├─ 記錄來源 Case + 痛點快照（painPointsSnapshot JSON）
   └─ 狀態：pending → quoted → developing → completed | cancelled
 
-News（最新資訊）：draft / published
+News（最新資訊）：draft / published（公開站只顯示 published）
 DevProject → DevPart（checklist JSON）→ DevComment
 Account（帳目）：quotation / invoice / receipt
 ```
@@ -59,7 +62,7 @@ Account（帳目）：quotation / invoice / receipt
 - 首頁同 `/solutions` 3 頁靜態預渲染；其餘行銷頁 DB 驅動
 - `/services`（3 層）、`/choose-service`、`/cases`、`/cases/[slug]`、`/r/[slug]`、`/apply`：`dynamic = 'force-dynamic'`，經 `createCaller()` 讀 DB——**build 唔打 DB**（驗證：假 DATABASE_URL build）
 - 服務目錄：`ServiceCategory`/`Service` model（Json 陣列欄位契約見 `src/server/content-utils.ts`），seed 由 `prisma/seed-data/service-catalog.ts` 匯入（upsert `update:{}` 唔覆寫 admin 修改，`SEED_FORCE_CONTENT=1` 強制還原）；SiteShell mega menu 經 `src/lib/use-catalog.ts` client fetch（SSR 唔 fetch）
-- `/r/[slug]` 區域公開頁：`region.getPublicBySlug` aggregate（intro + 區內案例卡 + 痛點/方案 chips），`null → notFound()`；**冇 `/r` index route**，breadcrumb 只用首頁 + 區域名稱；入口有 header「區域服務」選單 + footer「區域服務」欄（共用 `src/lib/use-regions.ts`，client-side fetch `region.list`，SSR/build 唔 fetch——保住全站 SSG；冇區域/失敗就隱藏）、admin 區域列表「查看公開頁」連結同 sitemap
+- `/r/[slug]` 區域公開頁：`region.getPublicBySlug` aggregate（intro + 區內案例卡 + 痛點 chips），`null → notFound()`；**冇 `/r` index route**，breadcrumb 只用首頁 + 區域名稱；**公開站冇任何入口**（navbar/footer/sitemap 都唔顯示），唯一入口係 admin 區域列表「查看公開頁」連結（直接 URL 仍可開）
 - `/apply` 資料流：案例頁 ApplyLink 寫 localStorage `consult_apply` → 表單（痛點預設全選）→ `application.create`（驗證痛點屬於案例、寫快照）→ 清 localStorage
 - sitemap 動態加入 DB 案例與區域頁（DB 掛咗仍回 200）
 - 相關案例判定：共用任一 tag / 痛點 / 方案（排除自己，最多 3）

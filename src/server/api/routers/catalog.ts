@@ -12,6 +12,8 @@ import { parseJsonOr, slugPattern, faqSchema, workStepSchema } from "@/server/co
 // 快取 TTL：公開讀（秒）
 const CATALOG_TTL = 5 * 60;
 
+const publishStatusEnum = z.enum(["draft", "published"]);
+
 // —— 公開 output ——
 
 const serviceCardOutput = z.object({
@@ -21,6 +23,7 @@ const serviceCardOutput = z.object({
   english: z.string(),
   tagline: z.string(),
   intro: z.string(),
+  status: publishStatusEnum,
   sortOrder: z.number(),
 });
 
@@ -34,6 +37,7 @@ const categoryCardOutput = z.object({
   intro: z.string(),
   approach: z.array(z.string()),
   checklist: z.array(z.string()),
+  status: publishStatusEnum,
   sortOrder: z.number(),
   services: z.array(serviceCardOutput),
 });
@@ -61,6 +65,7 @@ const serviceCardSelect = {
   english: true,
   tagline: true,
   intro: true,
+  status: true,
   sortOrder: true,
 } as const;
 
@@ -88,6 +93,7 @@ const toCategoryCard = (row: CategoryRow) => ({
   intro: row.intro,
   approach: parseJsonOr(z.array(z.string()), row.approach, []),
   checklist: parseJsonOr(z.array(z.string()), row.checklist, []),
+  status: row.status,
   sortOrder: row.sortOrder,
   services: row.services,
 });
@@ -99,6 +105,7 @@ const toServiceDetail = (row: ServiceRow) => ({
   english: row.english,
   tagline: row.tagline,
   intro: row.intro,
+  status: row.status,
   sortOrder: row.sortOrder,
   problem: row.problem,
   benefits: parseJsonOr(z.array(z.string()), row.benefits, []),
@@ -120,6 +127,7 @@ const categoryInput = z.object({
   intro: z.string().default(""),
   approach: z.array(z.string()).default([]),
   checklist: z.array(z.string()).default([]),
+  status: publishStatusEnum.default("published"),
   sortOrder: z.number().int().min(0).optional(),
 });
 
@@ -136,6 +144,7 @@ const serviceInput = z.object({
   workflow: z.array(workStepSchema).default([]),
   fit: z.array(z.string()).default([]),
   faqs: z.array(faqSchema).default([]),
+  status: publishStatusEnum.default("published"),
   sortOrder: z.number().int().min(0).optional(),
 });
 
@@ -146,9 +155,17 @@ export const catalogRouter = createTRPCRouter({
     .output(z.array(categoryCardOutput))
     .query(async ({ ctx }) => {
       return cached("catalog:list", CATALOG_TTL, async () => {
+        // 公開只顯示已發佈；draft 保留喺 DB 日後再用
         const rows = await ctx.db.serviceCategory.findMany({
+          where: { status: "published" },
           orderBy: categoryOrderBy,
-          include: { services: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }], select: serviceCardSelect } },
+          include: {
+            services: {
+              where: { status: "published" },
+              orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+              select: serviceCardSelect,
+            },
+          },
         });
         return rows.map(toCategoryCard);
       });
@@ -160,9 +177,16 @@ export const catalogRouter = createTRPCRouter({
       return cached(`catalog:category:${input.slug}`, CATALOG_TTL, async () => {
         const row = await ctx.db.serviceCategory.findUnique({
           where: { slug: input.slug },
-          include: { services: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }], select: serviceCardSelect } },
+          include: {
+            services: {
+              where: { status: "published" },
+              orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+              select: serviceCardSelect,
+            },
+          },
         });
-        return row ? toCategoryCard(row) : null;
+        if (!row || row.status !== "published") return null;
+        return toCategoryCard(row);
       });
     }),
   getService: publicProcedure
@@ -171,10 +195,20 @@ export const catalogRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       return cached(`catalog:service:${input.categorySlug}:${input.serviceSlug}`, CATALOG_TTL, async () => {
         const row = await ctx.db.service.findFirst({
-          where: { slug: input.serviceSlug, category: { slug: input.categorySlug } },
+          where: {
+            slug: input.serviceSlug,
+            status: "published",
+            category: { slug: input.categorySlug, status: "published" },
+          },
           include: {
             category: {
-              include: { services: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }], select: serviceCardSelect } },
+              include: {
+                services: {
+                  where: { status: "published" },
+                  orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+                  select: serviceCardSelect,
+                },
+              },
             },
           },
         });

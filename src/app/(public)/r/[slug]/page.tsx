@@ -95,8 +95,6 @@ export default async function RegionPage({ params }: { params: Promise<{ slug: s
               <span>{data.cases.length} 個案例</span>
               <span aria-hidden="true">·</span>
               <span>{data.painPoints.length} 個常見痛點</span>
-              <span aria-hidden="true">·</span>
-              <span>{data.solutions.length} 個對應方案</span>
             </p>
           </div>
         </section>
@@ -168,34 +166,17 @@ export default async function RegionPage({ params }: { params: Promise<{ slug: s
           </div>
         </section>
 
-        {/* 痛點 / 方案 */}
-        {(data.painPoints.length > 0 || data.solutions.length > 0) && (
+        {/* 痛點 */}
+        {data.painPoints.length > 0 && (
           <section className="pb-[72px] max-[1100px]:pb-14">
             <div className={containerClass}>
-              <div className="grid gap-[46px] md:grid-cols-2 max-[700px]:gap-8">
-                {data.painPoints.length > 0 && (
-                  <div>
-                    <p className={sectionLabelClass}><span className={sectionLabelDotClass} />PAIN POINTS</p>
-                    <h2 className="text-[24px] font-[650] leading-[1.5] tracking-[-0.8px] text-[#2c3a25]">常見痛點</h2>
-                    <ul className="mt-5 flex flex-wrap gap-[10px]">
-                      {data.painPoints.map((p) => (
-                        <li key={p.id} className={chipClass}>{p.title}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {data.solutions.length > 0 && (
-                  <div>
-                    <p className={sectionLabelClass}><span className={sectionLabelDotClass} />SOLUTIONS</p>
-                    <h2 className="text-[24px] font-[650] leading-[1.5] tracking-[-0.8px] text-[#2c3a25]">對應方案</h2>
-                    <ul className="mt-5 flex flex-wrap gap-[10px]">
-                      {data.solutions.map((s) => (
-                        <li key={s.id} className={chipClass}>{s.title}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
+              <p className={sectionLabelClass}><span className={sectionLabelDotClass} />PAIN POINTS</p>
+              <h2 className="text-[24px] font-[650] leading-[1.5] tracking-[-0.8px] text-[#2c3a25]">常見痛點</h2>
+              <ul className="mt-5 flex flex-wrap gap-[10px]">
+                {data.painPoints.map((p) => (
+                  <li key={p.id} className={chipClass}>{p.title}</li>
+                ))}
+              </ul>
             </div>
           </section>
         )}

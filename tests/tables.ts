@@ -11,6 +11,7 @@ export async function cleanAllTables(prisma: PrismaClient): Promise<void> {
     prisma.newsTag.deleteMany(),
     prisma.news.deleteMany(),
     prisma.caseTag.deleteMany(),
+    prisma.solutionTag.deleteMany(),
     prisma.tag.deleteMany(),
     prisma.tagGroup.deleteMany(),
     prisma.service.deleteMany(),

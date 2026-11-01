@@ -2,12 +2,13 @@
 
 // 案例編輯器：新增（/admin/cases/new）與編輯（/admin/cases/[id]/edit）共用
 // 編輯模式：資料載入後先掛載 CaseForm，用 useState 初始值載入（避免 effect setState）。
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Trash2 } from 'lucide-react';
 import { trpc } from '@/trpc/react';
 import { parseCaseContent } from '@/server/case-content';
 import { toDateInputValue } from '@/lib/format';
+import { GroupedTagPicker } from '../../_components/tag-picker';
 import {
   btnPrimaryClass,
   btnSecondaryClass,
@@ -59,6 +60,7 @@ function CaseForm({ caseId, initial }: { caseId?: string; initial?: Initial }) {
   const regions = trpc.region.list.useQuery();
   const painPoints = trpc.painPoint.list.useQuery();
   const solutions = trpc.solution.list.useQuery();
+  const tagGroups = trpc.tag.groupList.useQuery();
 
   const initialContent = initial ? parseCaseContent(initial.content) : null;
 
@@ -72,6 +74,21 @@ function CaseForm({ caseId, initial }: { caseId?: string; initial?: Initial }) {
   const [publishedAt, setPublishedAt] = useState(initial ? toDateInputValue(initial.publishedAt) : '');
   const [regionId, setRegionId] = useState(initial?.regionId ?? '');
   const [tagNames, setTagNames] = useState(initial?.tagNames.join(', ') ?? '');
+
+  // 分組標籤勾選器同 tagNames 文字輸入同步（以標籤名稱為準）
+  const selectedTagIds = useMemo(() => {
+    const names = tagNames.split(/[,，]/).map((t) => t.trim()).filter(Boolean);
+    const all = (tagGroups.data ?? []).flatMap((g) => g.tags);
+    return all.filter((t) => names.includes(t.name)).map((t) => t.id);
+  }, [tagNames, tagGroups.data]);
+
+  const toggleTagById = (tagId: string) => {
+    const tag = (tagGroups.data ?? []).flatMap((g) => g.tags).find((t) => t.id === tagId);
+    if (!tag) return;
+    const names = tagNames.split(/[,，]/).map((t) => t.trim()).filter(Boolean);
+    const next = names.includes(tag.name) ? names.filter((n) => n !== tag.name) : [...names, tag.name];
+    setTagNames(next.join(', '));
+  };
   const [lead, setLead] = useState(initialContent?.lead ?? '');
   const [sections, setSections] = useState<SectionState[]>(
     () =>
@@ -199,6 +216,10 @@ function CaseForm({ caseId, initial }: { caseId?: string; initial?: Initial }) {
           <Field label="標籤（以逗號分隔）" htmlFor="case-tags">
             <input id="case-tags" className={inputClass} value={tagNames} onChange={(e) => setTagNames(e.target.value)} placeholder="教育, 中小企" />
           </Field>
+          <div className="md:col-span-2">
+            <p className="mb-2 text-[13px] font-medium text-slate-600">或者直接勾選（行業 / 痛點 / 對象）</p>
+            <GroupedTagPicker selectedIds={selectedTagIds} onToggle={toggleTagById} />
+          </div>
         </div>
       </div>
 

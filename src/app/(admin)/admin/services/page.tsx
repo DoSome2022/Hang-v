@@ -52,6 +52,15 @@ export default function ServicesPage() {
                   <span className="ml-2 text-xs font-normal text-slate-400">
                     {category.slug}・{category.services.length} 個服務
                   </span>
+                  <span
+                    className={`ml-2 rounded px-1.5 py-0.5 text-xs ${
+                      category.status === 'published'
+                        ? 'bg-green-50 text-green-700'
+                        : 'bg-amber-50 text-amber-700'
+                    }`}
+                  >
+                    {category.status === 'published' ? '已發佈' : '草稿'}
+                  </span>
                 </h2>
                 <div className="flex shrink-0 gap-1">
                   <Link
@@ -83,6 +92,17 @@ export default function ServicesPage() {
                           <td className="py-2 pr-3 font-medium text-slate-700">{service.title}</td>
                           <td className="py-2 pr-3 font-mono text-xs text-slate-400">{service.slug}</td>
                           <td className="py-2 pr-3 text-xs text-slate-500">{service.english}</td>
+                          <td className="py-2 pr-3">
+                            <span
+                              className={`rounded px-1.5 py-0.5 text-xs ${
+                                service.status === 'published'
+                                  ? 'bg-green-50 text-green-700'
+                                  : 'bg-amber-50 text-amber-700'
+                              }`}
+                            >
+                              {service.status === 'published' ? '已發佈' : '草稿'}
+                            </span>
+                          </td>
                           <td className="py-2">
                             <div className="flex justify-end gap-2">
                               <Link

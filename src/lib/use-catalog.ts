@@ -2,8 +2,8 @@
 
 // 服務目錄（client-side 讀 catalog.listCategories，public、有 Redis 快取）：
 // SiteShell mega menu / 手機選單共用。
-// pattern 同 use-regions.ts：SSR/build 唔 fetch（保住靜態頁），hydration 後 fetch；
-// 失敗回 null（選單項目唔顯示）。module-level cache 同一頁只 fetch 一次。
+// pattern：useSyncExternalStore + module cache——SSR/build 唔 fetch（保住靜態頁），
+// hydration 後 fetch；失敗回 null（選單項目唔顯示）。同一頁只 fetch 一次。
 import { useSyncExternalStore } from 'react';
 import { createTRPCClient, httpBatchLink } from '@trpc/client';
 import type { AppRouter } from '@/server/api/root';

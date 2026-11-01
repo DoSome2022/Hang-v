@@ -53,6 +53,7 @@ export default function ServiceForm({
   const [categoryId, setCategoryId] = useState(
     initial?.categoryId ?? presetCategoryId ?? categories.data?.[0]?.id ?? '',
   );
+  const [status, setStatus] = useState<'draft' | 'published'>(initial?.status ?? 'published');
   const [english, setEnglish] = useState(initial?.english ?? '');
   const [tagline, setTagline] = useState(initial?.tagline ?? '');
   const [intro, setIntro] = useState(initial?.intro ?? '');
@@ -81,6 +82,7 @@ export default function ServiceForm({
     slug: slug.trim(),
     title: title.trim(),
     categoryId,
+    status,
     english: english.trim(),
     tagline: tagline.trim(),
     intro: intro.trim(),
@@ -122,6 +124,17 @@ export default function ServiceForm({
           </Field>
           <Field label="英文標題" htmlFor="svc-english">
             <input id="svc-english" className={inputClass} value={english} onChange={(e) => setEnglish(e.target.value)} />
+          </Field>
+          <Field label="狀態（草稿唔會喺公開站顯示）" htmlFor="svc-status">
+            <select
+              id="svc-status"
+              className={inputClass}
+              value={status}
+              onChange={(e) => setStatus(e.target.value as 'draft' | 'published')}
+            >
+              <option value="published">已發佈</option>
+              <option value="draft">草稿（隱藏）</option>
+            </select>
           </Field>
         </div>
         <Field label="副標（tagline）" htmlFor="svc-tagline">

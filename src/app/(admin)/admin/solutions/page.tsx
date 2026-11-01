@@ -17,8 +17,8 @@ import {
 export default function SolutionsPage() {
   const utils = trpc.useUtils();
   const list = trpc.solution.list.useQuery();
-  const regions = trpc.region.list.useQuery();
   const painPoints = trpc.painPoint.list.useQuery();
+  const tagGroups = trpc.tag.groupList.useQuery();
   const deleteMutation = trpc.solution.delete.useMutation({
     onSuccess: () => {
       void utils.solution.list.invalidate();
@@ -26,8 +26,8 @@ export default function SolutionsPage() {
     },
   });
 
-  const regionName = (id: string) => regions.data?.find((r) => r.id === id)?.name ?? id;
   const painPointName = (id: string) => painPoints.data?.find((p) => p.id === id)?.title ?? id;
+  const tagName = (id: string) => (tagGroups.data ?? []).flatMap((g) => g.tags).find((t) => t.id === id)?.name ?? id;
 
   const [query, setQuery] = useState('');
   const filtered = (list.data ?? []).filter((s) => !query.trim() || s.title.includes(query.trim()));
@@ -58,8 +58,8 @@ export default function SolutionsPage() {
                 <tr>
                   <th className={thClass}>標題</th>
                   <th className={thClass}>描述</th>
-                  <th className={thClass}>區域</th>
                   <th className={thClass}>相關痛點</th>
+                  <th className={thClass}>標籤</th>
                   <th className={thClass}>操作</th>
                 </tr>
               </thead>
@@ -68,7 +68,6 @@ export default function SolutionsPage() {
                   <tr key={s.id}>
                     <td className={`${tdClass} font-medium`}>{s.title}</td>
                     <td className={`${tdClass} max-w-[320px] text-slate-500`}>{s.description ?? '—'}</td>
-                    <td className={tdClass}>{regionName(s.regionId)}</td>
                     <td className={`${tdClass} max-w-[240px]`}>
                       {s.painPointIds.length === 0 ? (
                         <span className="text-slate-400">—</span>
@@ -76,6 +75,17 @@ export default function SolutionsPage() {
                         <div className="flex flex-wrap gap-1">
                           {s.painPointIds.map((id) => (
                             <span key={id} className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">{painPointName(id)}</span>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                    <td className={`${tdClass} max-w-[200px]`}>
+                      {s.tagIds.length === 0 ? (
+                        <span className="text-slate-400">—</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {s.tagIds.map((id) => (
+                            <span key={id} className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">{tagName(id)}</span>
                           ))}
                         </div>
                       )}

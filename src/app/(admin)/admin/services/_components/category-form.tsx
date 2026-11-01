@@ -56,6 +56,7 @@ export default function CategoryForm({
   const [icon, setIcon] = useState(initial?.icon ?? 'code');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [intro, setIntro] = useState(initial?.intro ?? '');
+  const [status, setStatus] = useState<'draft' | 'published'>(initial?.status ?? 'published');
   const [approach, setApproach] = useState(linesJoin(initial?.approach ?? []));
   const [checklist, setChecklist] = useState(linesJoin(initial?.checklist ?? []));
   const [sortOrderText, setSortOrderText] = useState(
@@ -78,6 +79,7 @@ export default function CategoryForm({
     intro: intro.trim(),
     approach: linesSplit(approach),
     checklist: linesSplit(checklist),
+    status,
     sortOrder: sortOrderText.trim() === '' ? undefined : Number(sortOrderText),
   });
 
@@ -100,6 +102,17 @@ export default function CategoryForm({
               {ICON_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
+            </select>
+          </Field>
+          <Field label="狀態（草稿唔會喺公開站顯示）" htmlFor="cat-status">
+            <select
+              id="cat-status"
+              className={inputClass}
+              value={status}
+              onChange={(e) => setStatus(e.target.value as 'draft' | 'published')}
+            >
+              <option value="published">已發佈</option>
+              <option value="draft">草稿（隱藏）</option>
             </select>
           </Field>
         </div>

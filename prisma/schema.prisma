@@ -13,7 +13,6 @@ model Region {
   name       String
   slug       String      @unique
   cases      Case[]
-  solutions  Solution[]
   painPoints PainPoint[]
   intros     Intro[]
   createdAt  DateTime    @default(now()) @map("created_at")
@@ -80,19 +79,17 @@ model Case {
   @@map("cases")
 }
 
-// 方案（admin 後台建立，案例 post 內顯示所用方案）
+// 方案（公共數據，admin 後台建立，案例 post 內顯示所用方案；唔跟區域）
 model Solution {
   id          String               @id @default(cuid())
   title       String
   description String?
-  regionId    String               @map("region_id")
-  region      Region               @relation(fields: [regionId], references: [id], onDelete: Cascade)
   cases       CaseSolution[]
   painPoints  SolutionPainPoint[]
+  tags        SolutionTag[]
   createdAt   DateTime             @default(now()) @map("created_at")
   updatedAt   DateTime             @updatedAt @map("updated_at")
 
-  @@index([regionId])
   @@map("solutions")
 }
 
@@ -158,6 +155,17 @@ model SolutionPainPoint {
   @@map("solution_pain_points")
 }
 
+model SolutionTag {
+  solutionId String   @map("solution_id")
+  tagId      String   @map("tag_id")
+  solution   Solution @relation(fields: [solutionId], references: [id], onDelete: Cascade)
+  tag        Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@id([solutionId, tagId])
+  @@map("solution_tags")
+}
+
 // —— 標籤（三組：行業 industry / 痛點 pain / 對象 audience） ——
 
 model TagGroup {
@@ -171,15 +179,16 @@ model TagGroup {
 }
 
 model Tag {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  groupId   String   @map("group_id")
-  group     TagGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  sortOrder Int      @default(0) @map("sort_order")
+  id        String        @id @default(cuid())
+  name      String        @unique
+  groupId   String        @map("group_id")
+  group     TagGroup      @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  sortOrder Int           @default(0) @map("sort_order")
   cases     CaseTag[]
   news      NewsTag[]
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  solutions SolutionTag[]
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
 
   @@index([groupId])
   @@map("tags")
@@ -206,15 +215,17 @@ enum NewsStatus {
 }
 
 model News {
-  id          String    @id @default(cuid())
+  id          String     @id @default(cuid())
+  slug        String     @unique
   title       String
-  summary     String    @default("")
-  category    String    @default("")
+  summary     String     @default("")
+  content     String     @default("")
+  category    String     @default("")
   status      NewsStatus @default(draft)
-  publishedAt DateTime? @map("published_at")
+  publishedAt DateTime?  @map("published_at")
   tags        NewsTag[]
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
 
   @@index([status])
   @@index([publishedAt])
@@ -234,21 +245,30 @@ model NewsTag {
 
 // —— 行銷服務目錄（公開 /services 頁；admin 可編輯，seed 匯入） ——
 
-model ServiceCategory {
-  id          String    @id @default(cuid())
-  slug        String    @unique
-  title       String
-  english     String    @default("")
-  icon        String    @default("code")
-  description String    @default("")
-  intro       String    @default("")
-  approach    Json      @default("[]") // string[]
-  checklist   Json      @default("[]") // string[]
-  sortOrder   Int       @default(0) @map("sort_order")
-  services    Service[]
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+enum PublishStatus {
+  draft
+  published
 
+  @@map("publish_status")
+}
+
+model ServiceCategory {
+  id          String         @id @default(cuid())
+  slug        String         @unique
+  title       String
+  english     String         @default("")
+  icon        String         @default("code")
+  description String         @default("")
+  intro       String         @default("")
+  approach    Json           @default("[]") // string[]
+  checklist   Json           @default("[]") // string[]
+  status      PublishStatus  @default(published)
+  sortOrder   Int            @default(0) @map("sort_order")
+  services    Service[]
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  @@index([status])
   @@map("service_categories")
 }
 
@@ -267,11 +287,13 @@ model Service {
   workflow     Json            @default("[]") // [{title,text}]
   fit          Json            @default("[]") // string[]
   faqs         Json            @default("[]") // [{question,answer}]
+  status       PublishStatus   @default(published)
   sortOrder    Int             @default(0) @map("sort_order")
   createdAt    DateTime        @default(now()) @map("created_at")
   updatedAt    DateTime        @updatedAt @map("updated_at")
 
   @@index([categoryId])
+  @@index([status])
   @@map("services")
 }
 

@@ -158,7 +158,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </nav>
         {/* Sidebar footer */}
         <div className="border-t border-white/10 px-6 py-4 text-xs text-[#8fa0b3]">
-          © {new Date().getFullYear()} Hangs Technology
+          © {new Date().getFullYear()} Hangs Tech Limited
         </div>
       </aside>
       {/* Main column */}

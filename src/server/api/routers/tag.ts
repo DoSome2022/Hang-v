@@ -61,6 +61,8 @@ export const tagRouter = createTRPCRouter({
       await deleteByPattern("case:*");
       // region 公開頁 aggregate 含案例卡 tags
       await deleteByPattern("region:*");
+      // news 公開頁 card 含 tags
+      await deleteByPattern("news:*");
       return {
         id: row.id,
         name: row.name,
@@ -84,6 +86,8 @@ export const tagRouter = createTRPCRouter({
       await deleteByPattern("case:*");
       // region 公開頁 aggregate 含案例卡 tags
       await deleteByPattern("region:*");
+      // news 公開頁 card 含 tags
+      await deleteByPattern("news:*");
       return {
         id: row.id,
         name: row.name,
@@ -99,6 +103,8 @@ export const tagRouter = createTRPCRouter({
       await deleteByPattern("case:*");
       // region 公開頁 aggregate 含案例卡 tags
       await deleteByPattern("region:*");
+      // news 公開頁 card 含 tags
+      await deleteByPattern("news:*");
       return { id: input.id };
     }),
 
@@ -124,6 +130,8 @@ export const tagRouter = createTRPCRouter({
       await deleteByPattern("case:*");
       // region 公開頁 aggregate 含案例卡 tags
       await deleteByPattern("region:*");
+      // news 公開頁 card 含 tags
+      await deleteByPattern("news:*");
       return { id: row.id, key: row.key, label: row.label, sortOrder: row.sortOrder, tags: [] };
     }),
   groupUpdate: protectedProcedure
@@ -147,6 +155,8 @@ export const tagRouter = createTRPCRouter({
       await deleteByPattern("case:*");
       // region 公開頁 aggregate 含案例卡 tags
       await deleteByPattern("region:*");
+      // news 公開頁 card 含 tags
+      await deleteByPattern("news:*");
       return {
         id: row.id,
         key: row.key,
@@ -169,6 +179,8 @@ export const tagRouter = createTRPCRouter({
       await deleteByPattern("case:*");
       // region 公開頁 aggregate 含案例卡 tags
       await deleteByPattern("region:*");
+      // news 公開頁 card 含 tags
+      await deleteByPattern("news:*");
       return { id: input.id };
     }),
 });

@@ -57,11 +57,12 @@ async function ensurePainPoint(regionId: string, title: string, description: str
   return created.id;
 }
 
-async function ensureSolution(regionId: string, title: string, description: string | null): Promise<string> {
-  const existing = await prisma.solution.findFirst({ where: { title, regionId } });
+async function ensureSolution(title: string, description: string | null): Promise<string> {
+  // 方案係公共數據（唔跟區域），按 title 去重
+  const existing = await prisma.solution.findFirst({ where: { title } });
   if (existing) return existing.id;
   const created = await prisma.solution.create({
-    data: { title, description, regionId },
+    data: { title, description },
   });
   return created.id;
 }
@@ -110,7 +111,7 @@ async function seedCasesIntoDb(regionId: string, groupIds: Map<string, string>) 
     const solutionIds = [];
     for (const s of c.solutions) {
       const def = seedSolutions.find((x) => x.title === s);
-      solutionIds.push(await ensureSolution(regionId, s, def?.description ?? null));
+      solutionIds.push(await ensureSolution(s, def?.description ?? null));
     }
 
     await prisma.caseTag.deleteMany({ where: { caseId: caseRow.id } });
@@ -135,25 +136,56 @@ async function seedCasesIntoDb(regionId: string, groupIds: Map<string, string>) 
 }
 
 async function seedNewsIntoDb(groupIds: Map<string, string>) {
+  const force = process.env.SEED_FORCE_CONTENT === '1';
   for (const n of seedNews) {
-    const existing = await prisma.news.findFirst({ where: { title: n.title } });
-    if (existing) continue;
+    // 舊資料收養：migration backfill 嘅行（slug = news-<id>）按 title 認領，
+    // 改用正式 slug——避免同 seed 新行重複
+    const existingByTitle = await prisma.news.findFirst({
+      where: { title: n.title, slug: { startsWith: 'news-' } },
+    });
+    if (existingByTitle && existingByTitle.slug !== n.slug) {
+      await prisma.news.update({
+        where: { id: existingByTitle.id },
+        data: { slug: n.slug },
+      });
+    }
     const tagIds: string[] = [];
     for (const tagName of n.tags) {
       const def = seedTags.find((t) => t.name === tagName);
       tagIds.push(await ensureTag(groupIds, tagName, def?.group ?? 'pain'));
     }
-    await prisma.news.create({
-      data: {
+    // upsert by slug；唔覆寫 admin 修改（SEED_FORCE_CONTENT=1 強制還原）
+    const row = await prisma.news.upsert({
+      where: { slug: n.slug },
+      update: force
+        ? {
+            title: n.title,
+            summary: n.summary,
+            content: n.content,
+            category: n.category,
+            status: n.status,
+            publishedAt: dateOnly(n.date),
+          }
+        : {},
+      create: {
+        slug: n.slug,
         title: n.title,
         summary: n.summary,
+        content: n.content,
         category: n.category,
         status: n.status,
         publishedAt: dateOnly(n.date),
-        tags: { create: tagIds.map((tagId) => ({ tagId })) },
       },
     });
+    // 關聯重建（idempotent）
+    await prisma.newsTag.deleteMany({ where: { newsId: row.id } });
+    if (tagIds.length > 0) {
+      await prisma.newsTag.createMany({
+        data: tagIds.map((tagId) => ({ newsId: row.id, tagId })),
+      });
+    }
   }
+  await deleteByPattern('news:*');
 }
 
 async function seedDevsIntoDb() {
@@ -307,7 +339,7 @@ async function main() {
     await ensurePainPoint(region.id, p.title, p.description);
   }
   for (const s of seedSolutions) {
-    await ensureSolution(region.id, s.title, s.description);
+    await ensureSolution(s.title, s.description);
   }
 
   await seedCasesIntoDb(region.id, groupIds);

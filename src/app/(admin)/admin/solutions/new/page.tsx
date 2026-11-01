@@ -3,18 +3,18 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { trpc } from '@/trpc/react';
+import { GroupedTagPicker } from '../../_components/tag-picker';
 import { btnPrimaryClass, btnSecondaryClass, cardClass, ErrorNote, Field, inputClass } from '../../_components/admin-ui';
 
 export default function SolutionsNewPage() {
   const router = useRouter();
   const utils = trpc.useUtils();
-  const regions = trpc.region.list.useQuery();
   const painPoints = trpc.painPoint.list.useQuery();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [regionId, setRegionId] = useState('');
   const [painPointIds, setPainPointIds] = useState<string[]>([]);
+  const [tagIds, setTagIds] = useState<string[]>([]);
 
   const createMutation = trpc.solution.create.useMutation({
     onSuccess: () => {
@@ -27,7 +27,7 @@ export default function SolutionsNewPage() {
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (createMutation.isPending) return;
-    createMutation.mutate({ title: title.trim(), description: description.trim() || undefined, regionId, painPointIds });
+    createMutation.mutate({ title: title.trim(), description: description.trim() || undefined, painPointIds, tagIds });
   };
 
   return (
@@ -38,14 +38,6 @@ export default function SolutionsNewPage() {
       </Field>
       <Field label="描述" htmlFor="sol-desc">
         <textarea id="sol-desc" className={`${inputClass} min-h-[100px]`} value={description} onChange={(e) => setDescription(e.target.value)} />
-      </Field>
-      <Field label="區域 *" htmlFor="sol-region">
-        <select id="sol-region" className={inputClass} value={regionId} onChange={(e) => setRegionId(e.target.value)} required>
-          <option value="">選擇區域</option>
-          {(regions.data ?? []).map((r) => (
-            <option key={r.id} value={r.id}>{r.name}</option>
-          ))}
-        </select>
       </Field>
       <Field label="相關痛點">
         <div className="max-h-[200px] space-y-2 overflow-y-auto rounded-lg border border-slate-200 p-3">
@@ -62,6 +54,14 @@ export default function SolutionsNewPage() {
             </label>
           ))}
         </div>
+      </Field>
+      <Field label="標籤（行業 / 痛點 / 對象）">
+        <GroupedTagPicker
+          selectedIds={tagIds}
+          onToggle={(tagId) =>
+            setTagIds((prev) => (prev.includes(tagId) ? prev.filter((x) => x !== tagId) : [...prev, tagId]))
+          }
+        />
       </Field>
       <ErrorNote message={createMutation.isError ? createMutation.error.message : null} />
       <div className="flex items-center gap-3">

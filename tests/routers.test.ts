@@ -128,28 +128,81 @@ describe("catalog router", () => {
       adminCaller().catalog.categoryCreate({ slug: "Bad Slug", title: "x" }),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
+
+  it("draft 唔公開：category services 過濾 + getService/getCategory 回 null", async () => {
+    const admin = adminCaller();
+    const cat = await admin.catalog.categoryCreate({ slug: "cat-pub", title: "分類" });
+    await admin.catalog.serviceCreate({ slug: "svc-pub", title: "公開服務", categoryId: cat.id });
+    await admin.catalog.serviceCreate({ slug: "svc-draft", title: "草稿服務", categoryId: cat.id, status: "draft" });
+
+    const pubCat = await publicCaller().catalog.getCategory({ slug: "cat-pub" });
+    expect(pubCat?.services.map((s) => s.slug)).toEqual(["svc-pub"]);
+    expect(
+      await publicCaller().catalog.getService({ categorySlug: "cat-pub", serviceSlug: "svc-draft" }),
+    ).toBeNull();
+
+    // draft 分類成個隱藏
+    const cat2 = await admin.catalog.categoryCreate({ slug: "cat-draft", title: "草稿分類", status: "draft" });
+    await admin.catalog.serviceCreate({ slug: "svc-in-draft-cat", title: "x", categoryId: cat2.id });
+    expect(await publicCaller().catalog.getCategory({ slug: "cat-draft" })).toBeNull();
+    expect(
+      await publicCaller().catalog.getService({ categorySlug: "cat-draft", serviceSlug: "svc-in-draft-cat" }),
+    ).toBeNull();
+  });
+});
+
+describe("solution router", () => {
+  it("create/get/update 帶 tagIds（SolutionTag 關聯）", async () => {
+    const group = await db.tagGroup.create({ data: { key: "industry", label: "行業" } });
+    const tag = await db.tag.create({ data: { name: "教育", groupId: group.id } });
+    const admin = adminCaller();
+
+    const created = await admin.solution.create({
+      title: "方案A",
+      painPointIds: [],
+      tagIds: [tag.id],
+    });
+    expect(created.tagIds).toEqual([tag.id]);
+
+    const got = await admin.solution.get({ id: created.id });
+    expect(got.tagIds).toEqual([tag.id]);
+
+    const updated = await admin.solution.update({
+      id: created.id,
+      title: "方案A",
+      painPointIds: [],
+      tagIds: [],
+    });
+    expect(updated.tagIds).toEqual([]);
+    expect(await db.solutionTag.count()).toBe(0);
+  });
 });
 
 describe("news router", () => {
   it("create/list/update/delete", async () => {
     const admin = adminCaller();
     const created = await admin.news.create({
+      slug: "news-1",
       title: "最新消息",
       summary: "摘要",
+      content: "內文",
       category: "科技",
       status: "published",
       publishedAt: "2026-10-01",
       tagNames: [],
     });
     expect(created.status).toBe("published");
+    expect(created.slug).toBe("news-1");
 
     const list = await admin.news.list();
     expect(list).toHaveLength(1);
 
     const updated = await admin.news.update({
       id: created.id,
+      slug: "news-1",
       title: "最新消息",
       summary: "摘要",
+      content: "內文",
       category: "科技",
       status: "draft",
       tagNames: ["新標籤"],
@@ -159,6 +212,22 @@ describe("news router", () => {
 
     await admin.news.delete({ id: created.id });
     expect(await db.news.count()).toBe(0);
+  });
+
+  it("listPublic 只回 published；getPublicBySlug 詳情；draft 唔公開", async () => {
+    const admin = adminCaller();
+    await admin.news.create({ slug: "pub-1", title: "已發佈", status: "published", content: "內文一" });
+    await admin.news.create({ slug: "draft-1", title: "草稿", status: "draft" });
+
+    const list = await publicCaller().news.listPublic();
+    expect(list.map((n) => n.slug)).toEqual(["pub-1"]);
+
+    const detail = await publicCaller().news.getPublicBySlug({ slug: "pub-1" });
+    expect(detail?.content).toBe("內文一");
+    expect(detail?.title).toBe("已發佈");
+
+    expect(await publicCaller().news.getPublicBySlug({ slug: "draft-1" })).toBeNull();
+    expect(await publicCaller().news.getPublicBySlug({ slug: "nope" })).toBeNull();
   });
 });
 

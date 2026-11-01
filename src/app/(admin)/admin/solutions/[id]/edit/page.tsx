@@ -3,6 +3,7 @@
 import { use, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { trpc } from '@/trpc/react';
+import { GroupedTagPicker } from '../../../_components/tag-picker';
 import { btnPrimaryClass, btnSecondaryClass, cardClass, ErrorNote, Field, inputClass } from '../../../_components/admin-ui';
 
 export default function SolutionsEditPage({ params }: { params: Promise<{ id: string }> }) {
@@ -21,17 +22,16 @@ function EditForm({
   initial,
 }: {
   id: string;
-  initial: { title: string; description: string | null; regionId: string; painPointIds: string[] };
+  initial: { title: string; description: string | null; painPointIds: string[]; tagIds: string[] };
 }) {
   const router = useRouter();
   const utils = trpc.useUtils();
-  const regions = trpc.region.list.useQuery();
   const painPoints = trpc.painPoint.list.useQuery();
 
   const [title, setTitle] = useState(initial.title);
   const [description, setDescription] = useState(initial.description ?? '');
-  const [regionId, setRegionId] = useState(initial.regionId);
   const [painPointIds, setPainPointIds] = useState<string[]>(initial.painPointIds);
+  const [tagIds, setTagIds] = useState<string[]>(initial.tagIds);
 
   const updateMutation = trpc.solution.update.useMutation({
     onSuccess: () => {
@@ -44,7 +44,7 @@ function EditForm({
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (updateMutation.isPending) return;
-    updateMutation.mutate({ id, title: title.trim(), description: description.trim() || undefined, regionId, painPointIds });
+    updateMutation.mutate({ id, title: title.trim(), description: description.trim() || undefined, painPointIds, tagIds });
   };
 
   return (
@@ -55,14 +55,6 @@ function EditForm({
       </Field>
       <Field label="描述" htmlFor="sol-desc">
         <textarea id="sol-desc" className={`${inputClass} min-h-[100px]`} value={description} onChange={(e) => setDescription(e.target.value)} />
-      </Field>
-      <Field label="區域 *" htmlFor="sol-region">
-        <select id="sol-region" className={inputClass} value={regionId} onChange={(e) => setRegionId(e.target.value)} required>
-          <option value="">選擇區域</option>
-          {(regions.data ?? []).map((r) => (
-            <option key={r.id} value={r.id}>{r.name}</option>
-          ))}
-        </select>
       </Field>
       <Field label="相關痛點">
         <div className="max-h-[200px] space-y-2 overflow-y-auto rounded-lg border border-slate-200 p-3">
@@ -79,6 +71,14 @@ function EditForm({
             </label>
           ))}
         </div>
+      </Field>
+      <Field label="標籤（行業 / 痛點 / 對象）">
+        <GroupedTagPicker
+          selectedIds={tagIds}
+          onToggle={(tagId) =>
+            setTagIds((prev) => (prev.includes(tagId) ? prev.filter((x) => x !== tagId) : [...prev, tagId]))
+          }
+        />
       </Field>
       <ErrorNote message={updateMutation.isError ? updateMutation.error.message : null} />
       <div className="flex items-center gap-3">

@@ -10,7 +10,9 @@ export default function NewsNewPage() {
   const utils = trpc.useUtils();
 
   const [title, setTitle] = useState('');
+  const [slug, setSlug] = useState('');
   const [summary, setSummary] = useState('');
+  const [content, setContent] = useState('');
   const [category, setCategory] = useState('');
   const [status, setStatus] = useState<'draft' | 'published'>('draft');
   const [publishedAt, setPublishedAt] = useState('');
@@ -28,8 +30,10 @@ export default function NewsNewPage() {
     e.preventDefault();
     if (createMutation.isPending) return;
     createMutation.mutate({
+      slug: slug.trim(),
       title: title.trim(),
       summary: summary.trim(),
+      content: content.trim(),
       category: category.trim(),
       status,
       publishedAt: publishedAt || undefined,
@@ -40,11 +44,19 @@ export default function NewsNewPage() {
   return (
     <form onSubmit={onSubmit} className={`${cardClass} max-w-[640px] space-y-4`}>
       <h2 className="text-sm font-semibold text-slate-700">新增資訊</h2>
-      <Field label="標題 *" htmlFor="news-title">
-        <input id="news-title" className={inputClass} value={title} onChange={(e) => setTitle(e.target.value)} required maxLength={200} />
+      <div className="grid gap-4 md:grid-cols-2">
+        <Field label="標題 *" htmlFor="news-title">
+          <input id="news-title" className={inputClass} value={title} onChange={(e) => setTitle(e.target.value)} required maxLength={200} />
+        </Field>
+        <Field label="Slug（唯一，公開 URL 用，小寫英數與 -）*" htmlFor="news-slug">
+          <input id="news-slug" className={inputClass} pattern="[a-z0-9-]+" value={slug} onChange={(e) => setSlug(e.target.value)} required />
+        </Field>
+      </div>
+      <Field label="摘要（列表頁顯示）" htmlFor="news-summary">
+        <textarea id="news-summary" className={`${inputClass} min-h-[80px]`} value={summary} onChange={(e) => setSummary(e.target.value)} maxLength={2000} />
       </Field>
-      <Field label="摘要" htmlFor="news-summary">
-        <textarea id="news-summary" className={`${inputClass} min-h-[100px]`} value={summary} onChange={(e) => setSummary(e.target.value)} maxLength={2000} />
+      <Field label="內容（詳情頁顯示，段落用空行分隔）" htmlFor="news-content">
+        <textarea id="news-content" className={`${inputClass} min-h-[140px]`} value={content} onChange={(e) => setContent(e.target.value)} />
       </Field>
       <div className="grid gap-4 md:grid-cols-2">
         <Field label="分類" htmlFor="news-category">
