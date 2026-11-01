@@ -99,3 +99,32 @@ test('案例後台：列表顯示種子案例並可開啟公開頁', async ({ pa
   await page.goto('/admin/cases');
   await expect(page.getByText('補習社數碼轉型', { exact: false }).first()).toBeVisible();
 });
+
+test('服務目錄：種子分類顯示 + 新增分類 + 清理', async ({ page }) => {
+  await page.goto('/admin/login');
+  await page.getByLabel('帳號').fill(username);
+  await page.getByLabel('密碼').fill(password);
+  await page.getByRole('button', { name: '登入' }).click();
+  await expect(page).toHaveURL(/\/admin$/);
+
+  await page.goto('/admin/services');
+  // 種子分類（seed-data/service-catalog.ts）
+  await expect(page.getByText('AI 應用與知識助手', { exact: false }).first()).toBeVisible();
+  await expect(page.getByText('ai-chatbot', { exact: true }).first()).toBeVisible();
+
+  // 新增分類
+  const suffix = Date.now().toString().slice(-6);
+  const name = `e2e-cat-${suffix}`;
+  await page.getByRole('link', { name: '新增分類' }).click();
+  await page.getByLabel('名稱 *').fill(name);
+  await page.getByLabel('Slug（唯一，小寫英數與 -）*').fill(name);
+  await page.getByRole('button', { name: '儲存' }).click();
+  await expect(page).toHaveURL(/\/admin\/services$/);
+  await expect(page.getByText(name, { exact: false })).toBeVisible();
+
+  // 清理：刪除呢個分類（確認對話框）
+  const card = page.locator('div.rounded-xl').filter({ hasText: name }).first();
+  page.on('dialog', (dialog) => dialog.accept());
+  await card.getByRole('button', { name: '刪除' }).click();
+  await expect(page.getByText(name, { exact: false })).toHaveCount(0);
+});

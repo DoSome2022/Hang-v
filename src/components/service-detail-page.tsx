@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { ArrowDown, ArrowUpRight, Check, CircleCheck } from 'lucide-react';
-import type { ServiceCategory, ServiceDetail } from '@/lib/service-catalog';
+import type { CatalogCategory, CatalogService } from '@/server/api/routers/catalog';
 import { ConsultButton } from './site-shell';
 import { PageFAQ, PageSchema, PageProcess } from './page-blocks';
 import { categoryIcons } from './catalog-icons';
@@ -14,8 +14,8 @@ const serviceFaqs = [
 const sectionGridClass =
   'grid grid-cols-[340px_1fr] gap-[70px] max-[1100px]:gap-[45px] max-[900px]:grid-cols-[280px_1fr] max-[900px]:gap-[35px] max-[700px]:grid-cols-1 max-[700px]:gap-[22px]';
 
-export default function ServiceDetailPage({ category, service }: { category: ServiceCategory; service: ServiceDetail }) {
-  const Icon = categoryIcons[category.icon];
+export default function ServiceDetailPage({ category, service }: { category: CatalogCategory; service: CatalogService }) {
+  const Icon = categoryIcons[category.icon as keyof typeof categoryIcons];
   const siblings = category.services.filter((item) => item.slug !== service.slug);
 
   return (

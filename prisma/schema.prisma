@@ -232,6 +232,49 @@ model NewsTag {
   @@map("news_tags")
 }
 
+// —— 行銷服務目錄（公開 /services 頁；admin 可編輯，seed 匯入） ——
+
+model ServiceCategory {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  title       String
+  english     String    @default("")
+  icon        String    @default("code")
+  description String    @default("")
+  intro       String    @default("")
+  approach    Json      @default("[]") // string[]
+  checklist   Json      @default("[]") // string[]
+  sortOrder   Int       @default(0) @map("sort_order")
+  services    Service[]
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("service_categories")
+}
+
+model Service {
+  id           String          @id @default(cuid())
+  slug         String          @unique
+  categoryId   String          @map("category_id")
+  category     ServiceCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  title        String
+  english      String          @default("")
+  tagline      String          @default("")
+  intro        String          @default("")
+  problem      String          @default("")
+  benefits     Json            @default("[]") // string[]
+  capabilities Json            @default("[]") // string[]
+  workflow     Json            @default("[]") // [{title,text}]
+  fit          Json            @default("[]") // string[]
+  faqs         Json            @default("[]") // [{question,answer}]
+  sortOrder    Int             @default(0) @map("sort_order")
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
+
+  @@index([categoryId])
+  @@map("services")
+}
+
 // —— 開發清單 ——
 
 model DevProject {

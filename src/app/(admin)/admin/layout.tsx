@@ -22,6 +22,7 @@ import {
   ChevronDown,
   Wallet,
   Tags,
+  LayoutGrid,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/trpc/react";
@@ -56,6 +57,7 @@ const menuGroups: MenuGroup[] = [
   {
     label: "內容管理",
     items: [
+      { title: "服務目錄", href: "/admin/services", icon: LayoutGrid },
       { title: "服務介紹", href: "/admin/intros", icon: BriefcaseBusiness },
       { title: "真實案例", href: "/admin/cases", icon: FolderKanban },
       { title: "解決方案", href: "/admin/solutions", icon: Lightbulb },

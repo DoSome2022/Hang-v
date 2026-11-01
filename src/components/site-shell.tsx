@@ -20,9 +20,10 @@ import {
   Building2
 } from 'lucide-react';
 import { Brand, Consultation, useHydrated } from './shared-ui';
-import { categories } from '@/lib/service-catalog';
+import type { CatalogCategory } from '@/server/api/routers/catalog';
 import { categoryIcons } from './catalog-icons';
 import { useRegions } from '@/lib/use-regions';
+import { useCatalog } from '@/lib/use-catalog';
 import { buttonClass, buttonPrimaryClass } from '@/lib/ui';
 export const solutionLinks = [
   { href: '/solutions/solo', label: '一人公司', note: '讓 AI 成為你的日常助手', icon: UserRound },
@@ -63,13 +64,14 @@ export function ConsultButton({
 }
 const navLinkClass =
   'relative px-0 py-[29px] text-[13px] font-[450] text-[#58616d] transition-colors duration-200 after:absolute after:bottom-[19px] after:left-1/2 after:h-[4px] after:w-[4px] after:-translate-x-1/2 after:scale-0 after:rounded-full after:bg-green after:transition-transform after:duration-200 after:content-[\'\'] hover:text-green-dark';
-function ServicesMegaMenu({ pathname, close }: { pathname: string; close: () => void }) {
+function ServicesMegaMenu({ pathname, close, categories }: { pathname: string; close: () => void; categories: CatalogCategory[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [active, setActive] = useState(categories[0].slug);
+  const [active, setActive] = useState('');
   const triggerRef = useRef<HTMLButtonElement>(null);
   const activeCategory = categories.find((category) => category.slug === active) ?? categories[0];
   const servicesActive = pathname.startsWith('/services');
+  if (!activeCategory) return null;
   return (
     <div
       className="relative flex items-center"
@@ -98,7 +100,7 @@ function ServicesMegaMenu({ pathname, close }: { pathname: string; close: () => 
               <span className="text-right text-[9px] tracking-[0.8px] text-[#b8c5a8]">SERVICE CATEGORIES</span>
             </p>
             {categories.map((category) => {
-              const Icon = categoryIcons[category.icon];
+              const Icon = categoryIcons[category.icon as keyof typeof categoryIcons];
               return (
                 <button
                   key={category.slug}
@@ -170,6 +172,8 @@ function Header() {
   const header = useRef<HTMLElement>(null);
   // 區域列表 client-side 讀取；冇區域/失敗 → null（選單項目隱藏）
   const regions = useRegions();
+  // 服務目錄 client-side 讀取（mega menu 用）；冇資料/失敗 → 唔顯示選單項目
+  const categories = useCatalog();
   const closeMenus = () => {
     setMobileOpen(false);
     if (dropdown.current) dropdown.current.open = false;
@@ -271,7 +275,7 @@ function Header() {
               </div>
             </div>
           </details>
-          <ServicesMegaMenu pathname={pathname} close={closeMenus} />
+          <ServicesMegaMenu pathname={pathname} close={closeMenus} categories={categories ?? []} />
           <Link href="/cases" aria-current={current('/cases')} className={`${navLinkClass} ${pathname.startsWith('/cases') ? 'text-green-dark after:scale-100' : ''}`} onClick={closeMenus}>
             真實案例
           </Link>
@@ -375,12 +379,12 @@ function Header() {
             ))}
           </>
         )}
-        {categories.map((category) => (
+        {(categories ?? []).map((category) => (
           <details className="border-b border-[#e7edde]" key={category.slug}>
             <summary className="flex cursor-pointer list-none items-center gap-[11px] p-[13px_4px] text-[15px] text-[#33402a] [&::-webkit-details-marker]:hidden">
               <span className="flex h-[25px] w-[25px] shrink-0 items-center justify-center rounded-[7px] bg-[#eef4e5] text-[#7fa34f]">
                 {(() => {
-                  const Icon = categoryIcons[category.icon];
+                  const Icon = categoryIcons[category.icon as keyof typeof categoryIcons];
                   return <Icon size={15} strokeWidth={1.5} />;
                 })()}
               </span>

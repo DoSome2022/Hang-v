@@ -81,4 +81,11 @@ describe("region 公開頁快取失效", () => {
     await adminCaller().tag.update({ id: tag.id, name: "網站很慢" });
     expect(calledPatterns()).toEqual(["case:*", "region:*"]);
   });
+
+  it("catalog serviceCreate 失效 catalog:*", async () => {
+    const cat = await adminCaller().catalog.categoryCreate({ slug: "c1", title: "分類" });
+    deleteByPatternMock.mockClear();
+    await adminCaller().catalog.serviceCreate({ slug: "s1", title: "服務", categoryId: cat.id });
+    expect(calledPatterns()).toEqual(["catalog:*"]);
+  });
 });

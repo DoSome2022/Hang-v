@@ -2,18 +2,30 @@ import Link from 'next/link';
 import { ArrowUpRight, Check, Cloud, Code2, MessageSquareText, ShieldCheck, Sparkles, ArrowRight } from 'lucide-react';
 import { PageFAQ, PageHeading, PageSchema, RelatedSolutions } from '@/components/page-blocks';
 import { ConsultButton } from '@/components/site-shell';
-import { categories } from '@/lib/service-catalog';
+import { pageMetadata } from '@/lib/metadata';
 import { categoryIcons } from '@/components/catalog-icons';
 import { containerClass, sectionLabelClass, sectionLabelDotClass, textLinkClass } from '@/lib/ui';
+import { createCaller } from '@/server/api/caller';
+
+// DB 驅動：build 唔打 DB
+export const dynamic = 'force-dynamic';
 
 const serviceFaqs = [
   { question: '可否只選取其中一項服務？', answer: '可以。我們會按你實際需要的範圍組合作業，不必一次過採用全部服務。' },
   { question: '是否提供免費試用或試點？', answer: '初步諮詢免費，正式開發、試點及培訓會另行報價。' },
 ];
 
+export const metadata = pageMetadata(
+  '服務介紹｜實瀚科技',
+  '由 AI、自動化、雲端、資訊保安到客製開發，實瀚科技為香港中小企與專業人士提供務實的科技服務。',
+  '/services',
+);
+
 const networkNodeClass = 'absolute flex items-center gap-[9px] rounded-[7px] border border-[#dfe8d5] bg-white p-3 text-[12px] text-[#6d8557] shadow-[0_7px_18px_-11px_#4c643021] max-[1100px]:p-[10px] max-[700px]:gap-[6px] max-[700px]:p-[10px_8px] max-[700px]:text-[13px]';
 
-export default function ServicesPage() {
+export default async function ServicesPage() {
+  const caller = await createCaller();
+  const categories = await caller.catalog.listCategories();
   return (
     <>
       <PageSchema
@@ -92,7 +104,7 @@ export default function ServicesPage() {
             <PageHeading eyebrow="OUR SERVICES" title={['五個服務分類，', '覆蓋你的日常營運。']} intro="由策略到落地，我們把每項服務拆成清晰的範圍，讓你知道會得到甚麼。" />
             <div>
               {categories.map((category, index) => {
-                const Icon = categoryIcons[category.icon];
+                const Icon = categoryIcons[category.icon as keyof typeof categoryIcons];
                 return (
                   <div key={category.slug} className="relative grid grid-cols-[85px_1.25fr_1fr] items-center gap-[33px] border-b border-[#e6eddf] p-[37px_10px_37px_0] max-[1100px]:grid-cols-[70px_1.2fr_1fr] max-[1100px]:gap-[25px] max-[700px]:grid-cols-[53px_1.1fr_1fr] max-[700px]:gap-5">
                     <div className="flex flex-col items-start gap-[21px] self-start">

@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { ArrowDown, ArrowUpRight } from 'lucide-react';
-import type { ServiceCategory } from '@/lib/service-catalog';
-import { categories } from '@/lib/service-catalog';
+import type { CatalogCategory } from '@/server/api/routers/catalog';
 import { ConsultButton } from './site-shell';
 import { categoryIcons } from './catalog-icons';
 import { PageHeading, PageFAQ, PageCTA, PageSchema, PageProcess } from './page-blocks';
@@ -16,9 +15,9 @@ const categoryFaqs = [
 const catalogCardClass =
   'flex flex-col rounded-[12px] border border-[#e1e9d8] bg-white p-[31px] transition-[transform,border-color,box-shadow] duration-200 hover:-translate-y-1 hover:border-[#c6d8b6] hover:shadow-[0_15px_28px_-20px_#3c582824] max-[1100px]:p-[26px] max-[900px]:p-[22px] max-[700px]:p-[25px]';
 
-export default function CategoryPage({ category }: { category: ServiceCategory }) {
-  const Icon = categoryIcons[category.icon];
-  const otherCategories = categories.filter((item) => item.slug !== category.slug);
+export default function CategoryPage({ category, allCategories }: { category: CatalogCategory; allCategories: CatalogCategory[] }) {
+  const Icon = categoryIcons[category.icon as keyof typeof categoryIcons];
+  const otherCategories = allCategories.filter((item) => item.slug !== category.slug);
 
   return (
     <>

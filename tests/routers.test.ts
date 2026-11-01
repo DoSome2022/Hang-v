@@ -9,7 +9,7 @@ vi.mock("@/server/auth", () => ({
 }));
 
 import { db } from "@/server/db";
-import { adminCaller, cleanAllTables } from "./helpers";
+import { adminCaller, cleanAllTables, publicCaller } from "./helpers";
 
 beforeEach(async () => {
   await cleanAllTables(db);
@@ -70,6 +70,63 @@ describe("tag router", () => {
   it("groupCreate 空 label 被拒絕", async () => {
     const admin = adminCaller();
     await expect(admin.tag.groupCreate({ label: "" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+});
+
+describe("catalog router", () => {
+  it("category/service 兩層 CRUD + 公開讀", async () => {
+    const admin = adminCaller();
+    const cat = await admin.catalog.categoryCreate({ slug: "ai-apps", title: "AI 應用" });
+    expect(cat.slug).toBe("ai-apps");
+    expect(cat.services).toHaveLength(0);
+
+    const svc = await admin.catalog.serviceCreate({
+      slug: "chatbot",
+      title: "智能客服",
+      categoryId: cat.id,
+      benefits: ["好處一"],
+      workflow: [{ title: "步驟", text: "內文" }],
+      faqs: [{ question: "問", answer: "答" }],
+    });
+    expect(svc.benefits).toEqual(["好處一"]);
+    expect(svc.workflow).toEqual([{ title: "步驟", text: "內文" }]);
+
+    const list = await admin.catalog.adminList();
+    expect(list).toHaveLength(1);
+    expect(list[0]?.services.map((s) => s.slug)).toEqual(["chatbot"]);
+
+    // 公開讀
+    const publicData = await publicCaller().catalog.listCategories();
+    expect(publicData[0]?.title).toBe("AI 應用");
+    const detail = await publicCaller().catalog.getService({
+      categorySlug: "ai-apps",
+      serviceSlug: "chatbot",
+    });
+    expect(detail?.faqs).toEqual([{ question: "問", answer: "答" }]);
+    expect(detail?.category.slug).toBe("ai-apps");
+    // 唔存在回 null
+    expect(
+      await publicCaller().catalog.getService({ categorySlug: "ai-apps", serviceSlug: "nope" }),
+    ).toBeNull();
+    expect(await publicCaller().catalog.getCategory({ slug: "nope" })).toBeNull();
+
+    // update + category cascade delete
+    const updated = await admin.catalog.serviceUpdate({
+      id: svc.id,
+      slug: "chatbot",
+      title: "智能客服2",
+      categoryId: cat.id,
+    });
+    expect(updated.title).toBe("智能客服2");
+    await admin.catalog.categoryDelete({ id: cat.id });
+    expect(await db.service.count()).toBe(0);
+    expect(await db.serviceCategory.count()).toBe(0);
+  });
+
+  it("壞 slug 被拒絕", async () => {
+    await expect(
+      adminCaller().catalog.categoryCreate({ slug: "Bad Slug", title: "x" }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 });
 

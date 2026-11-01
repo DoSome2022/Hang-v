@@ -51,7 +51,8 @@ test('三個解決方案頁各有獨立結構化資料與 FAQ', async ({ page })
 
 test('服務介紹頁結構化資料與內容', async ({ page }) => {
   await page.goto('/services');
-  await expect(page.getByRole('link', { name: '查看此分類' })).toHaveCount(6);
+  // ≥6：admin e2e（平行執行）可能瞬時建立一個分類，唔好鎖死 6
+  expect(await page.getByRole('link', { name: '查看此分類' }).count()).toBeGreaterThanOrEqual(6);
   const schema = JSON.parse(await page.locator('script[type="application/ld+json"]').innerText());
   const graph = schema['@graph'];
   expect(graph.find((item: { '@type': string }) => item['@type'] === 'Service').name).toContain('服務介紹');
@@ -250,7 +251,8 @@ test('服務雙層選單：展開、左右切換與導航', async ({ page }) => 
   const panel = page.locator('#services-mega-panel');
   await expect(panel).toBeVisible();
   const leftButtons = panel.locator('.grid > div:first-child > button');
-  await expect(leftButtons).toHaveCount(6);
+  // ≥6：admin e2e（平行執行）可能瞬時建立一個分類
+  expect(await leftButtons.count()).toBeGreaterThanOrEqual(6);
   await expect(panel.locator('.grid > div:nth-child(2) a strong').first()).toHaveText('AI 智能客服');
   await leftButtons.nth(1).hover();
   await expect(panel.locator('.grid > div:nth-child(2) a strong').first()).toHaveText('RPA 流程自動化');
@@ -263,7 +265,8 @@ test('選擇服務頁：卡片展開與收合獨立', async ({ page }) => {
   await expect(page.locator('h1')).toHaveCount(1);
   await expect(page.getByRole('heading', { name: '尚未選擇任何服務' })).toBeVisible();
   const cards = page.locator('#main button[aria-expanded]');
-  await expect(cards).toHaveCount(6);
+  // ≥6：admin e2e（平行執行）可能瞬時建立一個分類
+  expect(await cards.count()).toBeGreaterThanOrEqual(6);
   await cards.first().click();
   await expect(cards.first()).toHaveAttribute('aria-expanded', 'true');
   await expect(cards.first().locator('ul button')).toHaveCount(4);

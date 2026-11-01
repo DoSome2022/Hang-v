@@ -8,6 +8,7 @@ import { seedCases } from './seed-data/cases';
 import { seedTagGroups, seedTags, seedPainPoints, seedSolutions } from './seed-data/taxonomy';
 import { seedNews } from './seed-data/news';
 import { seedDevs } from './seed-data/devs';
+import { categories as seedCatalogCategories } from './seed-data/service-catalog';
 
 const prisma = new PrismaClient();
 
@@ -210,6 +211,77 @@ async function seedAccounts() {
   }
 }
 
+// 服務目錄（公開 /services）：upsert by slug。
+// 預設唔覆寫 admin 修改（update: {}）；SEED_FORCE_CONTENT=1 時強制還原 seed 內容
+async function seedServiceCatalog() {
+  const force = process.env.SEED_FORCE_CONTENT === '1';
+  for (const [categoryIndex, cat] of seedCatalogCategories.entries()) {
+    const category = await prisma.serviceCategory.upsert({
+      where: { slug: cat.slug },
+      update: force
+        ? {
+            title: cat.title,
+            english: cat.english,
+            icon: cat.icon,
+            description: cat.description,
+            intro: cat.intro,
+            approach: cat.approach,
+            checklist: cat.checklist,
+            sortOrder: categoryIndex,
+          }
+        : {},
+      create: {
+        slug: cat.slug,
+        title: cat.title,
+        english: cat.english,
+        icon: cat.icon,
+        description: cat.description,
+        intro: cat.intro,
+        approach: cat.approach,
+        checklist: cat.checklist,
+        sortOrder: categoryIndex,
+      },
+    });
+    for (const [serviceIndex, svc] of cat.services.entries()) {
+      await prisma.service.upsert({
+        where: { slug: svc.slug },
+        update: force
+          ? {
+              title: svc.title,
+              english: svc.english,
+              tagline: svc.tagline,
+              intro: svc.intro,
+              problem: svc.problem,
+              benefits: svc.benefits,
+              capabilities: svc.capabilities,
+              workflow: svc.workflow,
+              fit: svc.fit,
+              faqs: svc.faqs,
+              categoryId: category.id,
+              sortOrder: serviceIndex,
+            }
+          : {},
+        create: {
+          slug: svc.slug,
+          categoryId: category.id,
+          title: svc.title,
+          english: svc.english,
+          tagline: svc.tagline,
+          intro: svc.intro,
+          problem: svc.problem,
+          benefits: svc.benefits,
+          capabilities: svc.capabilities,
+          workflow: svc.workflow,
+          fit: svc.fit,
+          faqs: svc.faqs,
+          sortOrder: serviceIndex,
+        },
+      });
+    }
+  }
+  await deleteByPattern('catalog:*');
+}
+
 async function seedIntro(regionId: string) {
   const existing = await prisma.intro.findFirst({ where: { regionId } });
   if (existing) return;
@@ -243,6 +315,7 @@ async function main() {
   await seedDevsIntoDb();
   await seedAccounts();
   await seedIntro(region.id);
+  await seedServiceCatalog();
 
   // 清公開頁快取：避免部署後「空案例列表」負面快取殘留 2 分鐘
   // （Redis 唔可用時 deleteByPattern 係 no-op，唔影響 seed 本身）

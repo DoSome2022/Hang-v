@@ -1,6 +1,5 @@
 import type { MetadataRoute } from 'next';
 import { siteUrl } from '@/lib/site';
-import { categories } from '@/lib/service-catalog';
 import { createCaller } from '@/server/api/caller';
 
 // DB 案例與區域動態加入 sitemap；DB 掛咗仍回 200（只少 DB URL）
@@ -35,9 +34,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   } catch (error) {
     console.error('[sitemap] 區域資料不可用', error);
   }
-  for (const category of categories) {
-    entries.push({ path: `/services/${category.slug}`, priority: 0.7 });
-    for (const service of category.services) entries.push({ path: `/services/${category.slug}/${service.slug}`, priority: 0.6 });
+  try {
+    const caller = await createCaller();
+    const catalog = await caller.catalog.listCategories();
+    for (const category of catalog) {
+      entries.push({ path: `/services/${category.slug}`, priority: 0.7 });
+      for (const service of category.services) entries.push({ path: `/services/${category.slug}/${service.slug}`, priority: 0.6 });
+    }
+  } catch (error) {
+    console.error('[sitemap] 服務目錄資料不可用', error);
   }
   return entries.map((entry) => ({ url: `${siteUrl}${entry.path}`, changeFrequency: 'monthly', priority: entry.priority }));
 }

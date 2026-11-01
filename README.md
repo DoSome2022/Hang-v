@@ -8,7 +8,7 @@
 - 前端：原生 Tailwind CSS v4 響應式設計；Lucide 圖示
 - 後端：Prisma 6 + PostgreSQL、tRPC 11 + Zod、NextAuth v5（單一 admin）
 - Redis 8：公開頁快取、登入限流、諮詢提交限流與排隊（未設定時優雅降級）
-- 靜態預先渲染 57 個行銷頁；`/cases`、`/r/[slug]`、`/apply`、後台為動態
+- 行銷頁 DB 驅動（admin 可編輯）：`/services` 全部分類與服務頁、`/choose-service`、`/cases`、`/r/[slug]`、`/apply`、後台；首頁與 `/solutions` 仍靜態預渲染
 - Vitest（後端整合測試）+ Playwright（瀏覽器 e2e）
 - Docker（standalone 輸出、non-root）+ 生產 compose（app + migrate + redis，經 NPM 反向代理）
 
@@ -49,7 +49,7 @@ make dev / make db-reset / make db-seed / make clean
 | --- | --- |
 | `/` | 行銷首頁（Hero、五大服務、主打方案、FAQ…） |
 | `/solutions/{solo,sme,enterprise}` | 三類客群解決方案頁 |
-| `/services`、`/services/[category]`、`/services/[category]/[service]` | 服務介紹（6 分類 19 服務，全靜態） |
+| `/services`、`/services/[category]`、`/services/[category]/[service]` | **服務目錄（DB 驅動，admin `/admin/services` 可編輯，seed 匯入）** |
 | `/choose-service` | 選擇服務互動頁 |
 | `/cases`、`/cases/[slug]` | **真實案例（讀資料庫，admin 建立即公開）** |
 | `/r/[slug]` | **區域公開頁（DB 驅動；區域名稱、公司介紹、區內案例＋申請、痛點／方案、諮詢 CTA）** |

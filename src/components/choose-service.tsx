@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { ArrowUpRight, Check, ChevronDown, MessageSquareText, Sparkles, X } from 'lucide-react';
 import { PageSchema } from './page-blocks';
-import { categories } from '@/lib/service-catalog';
+import type { CatalogCategory } from '@/server/api/routers/catalog';
 import { categoryIcons } from './catalog-icons';
 import { containerClass, buttonClass, buttonSecondaryClass, buttonNavyClass, onlineDotClass } from '@/lib/ui';
 
@@ -13,13 +13,13 @@ const cardClass =
 
 const chooseCardClass = 'appearance-none w-full cursor-pointer text-left';
 
-export default function ChooseService() {
+export default function ChooseService({ categories }: { categories: CatalogCategory[] }) {
   const [selected, setSelected] = useState<string[]>([]);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
 
   const allServices = useMemo(
     () => categories.flatMap((category) => category.services.map((service) => ({ ...service, categoryTitle: category.title, categorySlug: category.slug }))),
-    [],
+    [categories],
   );
 
   const toggle = (slug: string) => {
@@ -66,7 +66,7 @@ export default function ChooseService() {
           <div className={`${containerClass} grid grid-cols-[1.02fr_1fr] items-start gap-[26px] max-[1100px]:grid-cols-1`}>
             <div className="flex flex-col gap-4">
               {categories.map((category) => {
-                const Icon = categoryIcons[category.icon];
+                const Icon = categoryIcons[category.icon as keyof typeof categoryIcons];
                 const isActive = activeCategory === category.slug;
                 return (
                   <button

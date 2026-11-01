@@ -11,6 +11,7 @@ import { devRouter } from "@/server/api/routers/dev";
 import { accountRouter } from "@/server/api/routers/account";
 import { tagRouter } from "@/server/api/routers/tag";
 import { dashboardRouter } from "@/server/api/routers/dashboard";
+import { catalogRouter } from "@/server/api/routers/catalog";
 
 export const appRouter = createTRPCRouter({
   region: regionRouter,
@@ -23,6 +24,7 @@ export const appRouter = createTRPCRouter({
   dev: devRouter,
   account: accountRouter,
   tag: tagRouter,
+  catalog: catalogRouter,
   dashboard: dashboardRouter,
   // 驗證登入狀態與 protectedProcedure
   me: protectedProcedure

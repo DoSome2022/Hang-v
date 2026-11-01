@@ -1,3 +1,6 @@
+// 服務目錄種子資料（原 src/lib/service-catalog.ts 內容）。
+// DB（service_categories / services 表）係唯一真相，呢度係初始匯入來源。
+// 型別對應 Prisma Json 欄位契約（src/server/content-utils.ts）。
 export type FAQ = { question: string; answer: string };
 export type WorkStep = { title: string; text: string };
 export type ServiceDetail = {
@@ -315,6 +318,3 @@ export const categories: ServiceCategory[] = [
     ],
   },
 ];
-
-export function getCategory(slug: string): ServiceCategory | undefined { return categories.find(category => category.slug === slug); }
-export function getService(category: ServiceCategory, slug: string): ServiceDetail | undefined { return category.services.find(service => service.slug === slug); }
