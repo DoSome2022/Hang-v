@@ -4,6 +4,30 @@ export const company = {
   description: '實瀚科技為香港一人公司、中小企及企業提供 AI 應用、流程自動化、雲端與 DevOps、資訊安全及客製系統開發，讓科技真正解決業務問題。',
 };
 
+export const contact = {
+  phoneDisplay: '5985 9248',
+  phoneHref: 'tel:+85259859248',
+  whatsappHref: 'https://wa.me/85259859248',
+  addresses: [
+    {
+      label: '通訊地址',
+      zh: '九龍荔枝角道175-185號1樓 嘉褔中心143號鋪',
+      en: 'FLAT/RM 143, 1/F, GODFREY CENTRE, 175-185 LAI CHI KOK ROAD, SHAM SHUI PO, KLN',
+      mapsQuery: '143, 1/F, Godfrey Centre, 175-185 Lai Chi Kok Road, Sham Shui Po, Hong Kong',
+    },
+    {
+      label: '營業地址',
+      zh: '九龍油麻地砵蘭街 61-63 號 7樓B',
+      en: 'FLAT B, 7/F, SUN SHINE CENTRE, 61-63 PORTLAND STREET, YAU MA TEI, KLN',
+      mapsQuery: 'Flat B, 7/F, Sun Shine Centre, 61-63 Portland Street, Yau Ma Tei, Hong Kong',
+    },
+  ],
+} as const;
+
+export function contactMapsUrl(query: string) {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+}
+
 function getSiteUrl() {
   const value = process.env.NEXT_PUBLIC_SITE_URL;
   if (!value) return undefined;

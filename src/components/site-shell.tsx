@@ -13,6 +13,7 @@ import {
   ArrowRight,
   ArrowUpRight,
   ChevronDown,
+  MapPin,
   Menu,
   X,
   UserRound,
@@ -20,6 +21,7 @@ import {
   Building2
 } from 'lucide-react';
 import { Brand, Consultation, useHydrated } from './shared-ui';
+import { contact, contactMapsUrl } from '@/lib/site';
 import type { CatalogCategory } from '@/server/api/routers/catalog';
 import { categoryIcons } from './catalog-icons';
 import { useCatalog } from '@/lib/use-catalog';
@@ -380,7 +382,7 @@ function Footer() {
   return (
     <footer className="border-t border-line pt-[53px] max-[700px]:pt-[37px]">
       <div className="mx-auto max-w-[1256px] px-10 max-[1100px]:px-8">
-        <div className="grid grid-cols-[1.55fr_1fr_1fr_0.65fr] gap-[35px] pb-[45px] max-[1100px]:gap-[25px] max-[900px]:grid-cols-[1.4fr_1fr_1fr] max-[900px]:gap-8 max-[700px]:grid-cols-2 max-[700px]:gap-x-5 max-[700px]:gap-y-[28px] max-[700px]:pb-[30px]">
+        <div className="grid grid-cols-[1.3fr_0.85fr_0.95fr_0.85fr_1.45fr] gap-[35px] pb-[45px] max-[1100px]:gap-[25px] max-[900px]:grid-cols-[1.4fr_1fr_1fr] max-[900px]:gap-8 max-[700px]:grid-cols-2 max-[700px]:gap-x-5 max-[700px]:gap-y-[28px] max-[700px]:pb-[30px]">
           <div className="max-[700px]:col-span-2">
             <Brand compact />
             <p className="mt-5 text-[12px] text-[#6e7b62] max-[700px]:mt-[15px] max-[700px]:text-[13px]">讓科技，成為你的成長力。</p>
@@ -407,6 +409,34 @@ function Footer() {
             <Link href="/cases" className="bg-transparent p-0 text-left text-[12px] text-[#8b9482] hover:text-green-dark">真實案例</Link>
             <Link href="/news" className="bg-transparent p-0 text-left text-[12px] text-[#8b9482] hover:text-green-dark">最新資訊</Link>
             <Link href="/services#faq" className="bg-transparent p-0 text-left text-[12px] text-[#8b9482] hover:text-green-dark">常見問題</Link>
+          </div>
+          <div className="flex flex-col items-start gap-3 pt-1 max-[900px]:col-span-2 max-[700px]:col-span-2 max-[700px]:border-t max-[700px]:border-[#edf0e8] max-[700px]:pt-5">
+            <h3 className="mb-2 text-[13px] font-[550] max-[700px]:mb-[5px] max-[700px]:text-[12px]">聯絡我們</h3>
+            <div className="flex flex-col items-start gap-[14px]">
+              {contact.addresses.map((address) => (
+                <div key={address.label} className="text-[12px] leading-[1.75] text-[#8b9482]">
+                  <p className="mb-[2px] font-[550] text-[#5a6552]">{address.label}</p>
+                  <p>{address.zh}</p>
+                  <p className="font-[Arial,sans-serif] text-[11px] tracking-[0.2px] text-[#a3ab97]">{address.en}</p>
+                  <a
+                    href={contactMapsUrl(address.mapsQuery)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-[4px] inline-flex items-center gap-[5px] text-[11px] font-medium text-[#68854e] hover:text-green-dark"
+                  >
+                    <MapPin size={12} strokeWidth={1.5} />
+                    查看地圖
+                    <ArrowUpRight size={11} />
+                  </a>
+                </div>
+              ))}
+            </div>
+            <p className="text-[12px] leading-[1.9] text-[#8b9482]">
+              <span className="block font-[550] text-[#5a6552]">電話 / WhatsApp</span>
+              <a href={contact.phoneHref} className="text-[#4a5544] hover:text-green-dark">{contact.phoneDisplay}</a>
+              <span className="mx-[8px] text-[#c3c9b8]">｜</span>
+              <a href={contact.whatsappHref} target="_blank" rel="noopener noreferrer" className="text-[#68854e] hover:text-green-dark">WhatsApp 對話</a>
+            </p>
           </div>
         </div>
         <div className="flex min-h-[65px] items-center justify-between gap-5 text-[13px] text-[#99a18f] max-[700px]:min-h-[75px] max-[700px]:flex-wrap max-[700px]:gap-[15px] max-[700px]:py-[18px]">
