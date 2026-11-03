@@ -1,102 +1,66 @@
-# 生產部署（自足架構：db + redis + app 全部喺呢個 compose 內）
-# 適合阿里雲 + 寶塔（BT Panel）：用寶塔的 Docker 管理器或終端跑呢個 compose，
-# 再用寶塔「網站 → 反向代理」指向 127.0.0.1:3000。
-#
-# - migrate：每次 compose up 跑一次 prisma migrate deploy，成功後 app 先起
-# - seed：手動跑（見 DEPLOY.md），production 唔會自動 seed
-# - app 只綁 127.0.0.1，對外一律經寶塔 Nginx（覆寫 X-Forwarded-For）
-#
-# .env 需要：POSTGRES_PASSWORD、AUTH_SECRET、AUTH_ADMIN_USERNAME、
-#            AUTH_ADMIN_PASSWORD、NEXT_PUBLIC_SITE_URL（build 時注入）
-
 services:
   db:
     image: postgres:16-alpine
     container_name: hangs-db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: popo
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: claude_hangs_db
+      POSTGRES_DB: hangs_db
     volumes:
       - db-data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5435:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U popo -d claude_hangs_db"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
+      test: ["CMD-SHELL", "pg_isready -U postgres -d hangs_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
-    image: redis:8-alpine
+    image: redis:7-alpine
     container_name: hangs-redis
     restart: unless-stopped
-    # 唔開對外 port：只喺 compose 內網供 app 使用
-    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--maxmemory", "256mb", "--maxmemory-policy", "noeviction"]
     volumes:
       - redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
+    ports:
+      - "6380:6379"
 
   migrate:
     build:
       context: .
-      target: build
+      dockerfile: Dockerfile
     container_name: hangs-migrate
-    restart: "no"
-    env_file: .env
     environment:
-      DATABASE_URL: postgresql://popo:${POSTGRES_PASSWORD}@db:5432/claude_hangs_db?schema=public
-    command: sh -c "npx prisma migrate deploy"
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/hangs_db?schema=public
     depends_on:
       db:
         condition: service_healthy
-
-  # 一次性種子資料（唔會自動跑）：docker compose -f docker-compose.prod.yml --profile seed run --rm seed
-  seed:
-    build:
-      context: .
-      target: build
-    container_name: hangs-seed
+    command: ["npx", "prisma", "migrate", "deploy"]
     restart: "no"
-    profiles: ["seed"]
-    env_file: .env
-    environment:
-      DATABASE_URL: postgresql://popo:${POSTGRES_PASSWORD}@db:5432/claude_hangs_db?schema=public
-      # seed 完會清公開頁快取
-      REDIS_URL: redis://redis:6379/0
-    command: sh -c "npx tsx prisma/seed.ts"
-    depends_on:
-      db:
-        condition: service_healthy
 
   app:
     build:
       context: .
-      args:
-        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-}
+      dockerfile: Dockerfile
     container_name: hangs-app
     restart: unless-stopped
     env_file: .env
     environment:
-      DATABASE_URL: postgresql://popo:${POSTGRES_PASSWORD}@db:5432/claude_hangs_db?schema=public
-      # Redis：公開頁快取 + 登入限流 + 諮詢限流/佇列（唔設會優雅降級）
-      REDIS_URL: redis://redis:6379/0
-      # Auth.js v5 喺反向代理後需要信任 proxy 嘅 Host header
-      AUTH_TRUST_HOST: "true"
-      # Docker 會自動 set HOSTNAME=容器ID，Next 16 standalone 會跟住 bind 落
-      # 單一 interface——強制設 0.0.0.0
-      HOSTNAME: "0.0.0.0"
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/hangs_db?schema=public
+      - REDIS_URL=redis://hangs-redis:6379/0
+      - AUTH_SECRET=${AUTH_SECRET}
+      - AUTH_ADMIN_USERNAME=${AUTH_ADMIN_USERNAME}
+      - AUTH_ADMIN_PASSWORD=${AUTH_ADMIN_PASSWORD}
+      - AUTH_TRUST_HOST=true
+      - HOSTNAME=0.0.0.0
     depends_on:
       redis:
+        condition: service_started
+      db:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
-    # 只綁本機：對外一律經寶塔 Nginx 反向代理（覆寫 X-Forwarded-For）
     ports:
-      - "127.0.0.1:${APP_PORT:-3000}:3000"
+      - "127.0.0.1:3000:3000"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
       interval: 30s
