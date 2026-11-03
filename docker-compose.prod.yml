@@ -1,22 +1,7 @@
+# 生產部署（預設：雲端 DB / 阿里雲 RDS）：redis + migrate + app
+# 雲端 DB 模式：.env 設 DATABASE_URL → docker compose -f docker-compose.prod.yml up -d --build
+# 本機 DB 模式：docker compose -f docker-compose.prod.yml -f docker-compose.local-db.yml up -d --build
 services:
-  db:
-    image: postgres:16-alpine
-    container_name: hangs-db
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: hangs_db
-    volumes:
-      - db-data:/var/lib/postgresql/data
-    ports:
-      - "127.0.0.1:5435:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d hangs_db"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   redis:
     image: redis:7-alpine
     container_name: hangs-redis
@@ -34,12 +19,10 @@ services:
         - NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL:-}
     container_name: hangs-migrate
     environment:
-      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/hangs_db?schema=public
-    depends_on:
-      db:
-        condition: service_healthy
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/hangs_db?schema=public}
     command: ["npx", "prisma", "migrate", "deploy"]
-    restart: "no"
+    # 雲端 DB 短暫連唔上會自動重試（本機模式靠 overlay 嘅 healthy 條件）
+    restart: on-failure
 
   app:
     build:
@@ -51,7 +34,7 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/hangs_db?schema=public
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/hangs_db?schema=public}
       - REDIS_URL=redis://hangs-redis:6379/0
       - AUTH_SECRET=${AUTH_SECRET}
       - AUTH_ADMIN_USERNAME=${AUTH_ADMIN_USERNAME}
@@ -61,8 +44,6 @@ services:
     depends_on:
       redis:
         condition: service_started
-      db:
-        condition: service_healthy
     # 綁 0.0.0.0：NPM 若係 docker 容器，要經 docker bridge（172.17.0.1）先入到嚟；
     # 127.0.0.1 只對主機原生反代有效。外界訪問靠阿里雲安全組封 3000（只開 80/443）。
     ports:
@@ -75,5 +56,4 @@ services:
       retries: 3
 
 volumes:
-  db-data:
   redis-data:
