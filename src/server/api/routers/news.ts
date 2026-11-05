@@ -43,15 +43,17 @@ const newsOutput = z.object({
   updatedAt: z.date(),
 });
 
-// 公開頁 card：/news 列表用
+// 公開頁 card：/news 列表用（content/createdAt 供公開列表半自動搜尋 + 排列順序用）
 const newsCardOutput = z.object({
   id: z.string(),
   slug: z.string(),
   title: z.string(),
   summary: z.string(),
+  content: z.string(),
   category: z.string(),
   publishedAt: z.date().nullable(),
   tags: z.array(z.string()),
+  createdAt: z.date(),
 });
 
 const newsSelect = {
@@ -72,9 +74,11 @@ const toCard = (row: NewsRow) => {
     slug: rest.slug,
     title: rest.title,
     summary: rest.summary,
+    content: rest.content,
     category: rest.category,
     publishedAt: rest.publishedAt,
     tags: tags.map((t) => t.tag.name),
+    createdAt: rest.createdAt,
   };
 };
 
@@ -117,7 +121,8 @@ export const newsRouter = createTRPCRouter({
   listPublic: publicProcedure
     .output(z.array(newsCardOutput))
     .query(async ({ ctx }) => {
-      return cached("news:public:list", NEWS_TTL, async () => {
+      // v2：output 加左 content/createdAt，換 key 避免舊 shape cache 500
+      return cached("news:public:list:v2", NEWS_TTL, async () => {
         const rows = await ctx.db.news.findMany({
           where: { status: "published" },
           orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
@@ -128,15 +133,15 @@ export const newsRouter = createTRPCRouter({
     }),
   getPublicBySlug: publicProcedure
     .input(z.object({ slug: z.string() }))
-    .output(newsCardOutput.extend({ content: z.string() }).nullable())
+    .output(newsCardOutput.nullable())
     .query(async ({ ctx, input }) => {
-      return cached(`news:public:slug:${input.slug}`, NEWS_TTL, async () => {
+      return cached(`news:public:slug:v2:${input.slug}`, NEWS_TTL, async () => {
         const row = await ctx.db.news.findUnique({
           where: { slug: input.slug },
           include: newsSelect,
         });
         if (!row || row.status !== "published") return null;
-        return { ...toCard(row), content: row.content };
+        return toCard(row);
       });
     }),
 
