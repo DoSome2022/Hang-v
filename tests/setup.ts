@@ -6,6 +6,12 @@ if (!process.env.DATABASE_URL?.includes("claude_hangs_test")) {
   );
 }
 
+// Redis 隔離：測試用 DB 1（同 scripts/test-e2e.sh 策略），
+// 避免測試寫入嘅公開頁快取（case:*/region:*/news:*/catalog:*）污染 dev 站（DB 0）。
+if (process.env.REDIS_URL) {
+  process.env.REDIS_URL = process.env.REDIS_URL.replace(/\/\d+$/, "") + "/1";
+}
+
 // 每檔測試完結後清空測試表：避免殘留資料污染下一個 test file，
 // 亦避免殘留行（例如 catalog category）令之後嘅 e2e 種子資料斷言失準。
 // 注意：唔可以經 helpers import（會載入 app graph → next-auth → next/server 喺
