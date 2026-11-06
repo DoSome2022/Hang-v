@@ -21,8 +21,8 @@ const applicationOutput = z.object({
   applicantContact: z.string(),
   note: z.string().nullable(),
   status: applicationStatusEnum,
-  caseId: z.string(),
-  caseTitle: z.string(),
+  caseId: z.string().nullable(),
+  caseTitle: z.string().nullable(),
   painPointsSnapshot: z.array(painPointSnapshot),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -40,7 +40,8 @@ const toOutput = (row: ApplicationRow) => {
   const { case: sourceCase, painPointsSnapshot, ...rest } = row;
   return {
     ...rest,
-    caseTitle: sourceCase.title,
+    // 咨詢表單建立的申請冇案例 → caseTitle null（前台顯示「一般咨詢」）
+    caseTitle: sourceCase?.title ?? null,
     painPointsSnapshot:
       (painPointsSnapshot as Array<{ painPointId: string; title: string }>) ??
       [],
@@ -93,6 +94,39 @@ export const applicationRouter = createTRPCRouter({
           applicantContact: input.applicantContact,
           note: input.note,
           painPointsSnapshot: snapshot,
+        },
+        include: applicationSelect,
+      });
+      return toOutput(row);
+    }),
+  // 公開：前台咨詢表單（/api/consult）直接建立申請——冇案例（caseId null），
+  // 額外欄位（公司/規模/服務/訊息）組合成 note；痛點快照為空。
+  createFromConsult: publicProcedure
+    .input(
+      z.object({
+        name: z.string().min(1).max(80),
+        company: z.string().max(120),
+        email: z.string().min(1).max(180).regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/),
+        size: z.string().max(40),
+        service: z.string().max(120),
+        message: z.string().min(1).max(2000),
+      }),
+    )
+    .output(applicationOutput)
+    .mutation(async ({ ctx, input }) => {
+      const lines: string[] = [];
+      if (input.company) lines.push(`公司／團隊：${input.company}`);
+      if (input.size) lines.push(`團隊規模：${input.size}`);
+      if (input.service) lines.push(`感興趣的服務：${input.service}`);
+      if (input.message) lines.push(`想解決的問題：${input.message}`);
+      const note = lines.join("\n").slice(0, 2000) || null;
+
+      const row = await ctx.db.application.create({
+        data: {
+          applicantName: input.name,
+          applicantContact: input.email,
+          note,
+          painPointsSnapshot: [],
         },
         include: applicationSelect,
       });

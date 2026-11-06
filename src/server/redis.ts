@@ -161,6 +161,9 @@ export async function enqueueJson(key: string, payload: unknown, maxLength: numb
   await redis.multi().lpush(key, JSON.stringify(payload)).ltrim(key, 0, maxLength - 1).exec();
 }
 
+// 咨詢佇列 key：/api/consult 建立申請後 best-effort 排入，供將來 email/CRM worker 消費
+export const CONSULT_QUEUE_KEY = 'hangs:consult:queue';
+
 // —— 登入限流 ——
 
 export const LOGIN_MAX_FAILURES = 5;

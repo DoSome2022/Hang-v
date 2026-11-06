@@ -52,9 +52,9 @@ Account（帳目）：quotation / invoice / receipt
 | case.listPublic / getPublicBySlug / getPublic | `case:*` | 120-300s | case/painPoint/solution/tag 寫入、region 刪除 |
 | 諮詢限流 | `hangs:consult:rl:*` | 600s/3600s | 自然過期 |
 | 登入限流 | `hangs:login:fail:<sha256(ip)>` | 900s | 成功登入清除 |
-| 諮詢佇列 | `hangs:consult:queue` | — | LTRIM 1000 |
+| 諮詢佇列（email/CRM worker 待接，best-effort） | `hangs:consult:queue` | — | LTRIM 1000 |
 
-- Redis 不可用：快取/限流 fail-open，諮詢提交 503，`/api/health` 200 degraded
+- Redis 不可用：快取/限流/佇列 fail-open（諮詢提交照常入 DB），`/api/health` 200 degraded
 - DB 不可用：`/api/health` 503（Docker 容器 unhealthy）
 
 ## 公開前台（(public) route group）
@@ -82,11 +82,11 @@ Account（帳目）：quotation / invoice / receipt
 
 ## 諮詢表單（/api/consult）
 
-1. Redis 不可用 → 503
-2. 限流：per-IP 5 次/600s + 全域 100 次/3600s（單一 Lua script 原子執行）→ 429 + Retry-After
-3. 驗證表單欄位（name/email/message 必填 + 長度上限）→ 400
-4. `LPUSH + LTRIM 1000` 排入 `hangs:consult:queue`
-5. 目前冇 consumer（email/CRM worker 待接）——「已接收」= 進入佇列，唔等於有人已回覆
+1. 限流：per-IP 5 次/600s + 全域 100 次/3600s（單一 Lua script 原子執行）→ 429 + Retry-After；Redis 不可用 → fail-open
+2. 驗證表單欄位（name/email/message 必填 + 長度上限）→ 400
+3. `application.createFromConsult` 建立申請（caseId null；公司/規模/服務/訊息組合成 note）→ admin 申請列表即時可見、走 5 狀態流程；DB 失敗 → 503
+4. best-effort `LPUSH + LTRIM 1000` 排入 `hangs:consult:queue`（供將來 email/CRM worker 消費；失敗唔影響申請已入 DB）
+5. 「已接收」= 申請已建立，唔等於有人已回覆
 
 ## Docker 部署
 

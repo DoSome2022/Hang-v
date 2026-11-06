@@ -100,8 +100,9 @@ model Application {
   applicantContact   String            @map("applicant_contact")
   note               String?
   status             ApplicationStatus @default(pending)
-  caseId             String            @map("case_id")
-  case               Case              @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  // 案例申請（/apply）必有 caseId；前台咨詢表單建立的申請冇案例（caseId null）
+  caseId             String?           @map("case_id")
+  case               Case?             @relation(fields: [caseId], references: [id], onDelete: Cascade)
   painPointsSnapshot Json              @map("pain_points_snapshot") // [{ painPointId, title }]
   createdAt          DateTime          @default(now()) @map("created_at")
   updatedAt          DateTime          @updatedAt @map("updated_at")

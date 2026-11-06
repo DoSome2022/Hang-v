@@ -29,7 +29,7 @@ export default function ApplyTable({ statuses }: { statuses?: ApplicationStatus[
       (a) =>
         a.applicantName.toLowerCase().includes(q) ||
         a.applicantContact.toLowerCase().includes(q) ||
-        a.caseTitle.toLowerCase().includes(q),
+        (a.caseTitle ?? "").toLowerCase().includes(q),
     );
   }, [list.data, query]);
 
@@ -80,7 +80,9 @@ export default function ApplyTable({ statuses }: { statuses?: ApplicationStatus[
                   <tr key={a.id}>
                     <td className={`${tdClass} font-medium`}>{a.applicantName}</td>
                     <td className={tdClass}>{a.applicantContact}</td>
-                    <td className={`${tdClass} max-w-[160px]`}>{a.caseTitle}</td>
+                    <td className={`${tdClass} max-w-[160px]`}>
+                      {a.caseTitle ?? <span className="text-slate-400">一般咨詢</span>}
+                    </td>
                     <td className={`${tdClass} max-w-[220px]`}>
                       {a.painPointsSnapshot.length === 0 ? (
                         <span className="text-slate-400">—</span>

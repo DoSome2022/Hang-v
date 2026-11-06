@@ -23,7 +23,7 @@
 1. 公開站：靜態行銷內容（src/lib/service-catalog.ts / solutions.ts / site.ts）
 2. 案例：admin 建立 Case（slug unique、content 為 JSON `{lead,sections,result}`，契約見 `src/server/case-content.ts`）→ 公開 `/cases` 讀 DB
 3. 申請：案例詳情「申請」→ localStorage `consult_apply` {caseId,title} → `/apply` 勾痛點 → tRPC application.create（痛點快照入 DB）→ admin `/admin/apply/*` 處理
-4. 諮詢：前台 modal → `/api/consult` → Redis 限流 + `hangs:consult:queue`
+4. 諮詢：前台 modal → `/api/consult` → Redis 限流（fail-open）→ `application.createFromConsult` 建立申請（caseId null，欄位組合成 note）→ admin 申請列表處理；Redis `hangs:consult:queue` best-effort 排入（將來 email/CRM worker）
 5. 申請狀態 5 值（見 `src/lib/constants.ts`）：pending 申請中 → quoted 報左價 → developing 開發中 → completed 已完成 / cancelled 取消
 
 ## 閱讀順序

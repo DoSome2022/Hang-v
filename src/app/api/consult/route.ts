@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { NextRequest } from 'next/server';
-import { enqueueJson, fixedWindowLimit, getRedis, hashToken } from '@/server/redis';
+import { CONSULT_QUEUE_KEY, enqueueJson, fixedWindowLimit, getRedis, hashToken } from '@/server/redis';
+import { createCaller } from '@/server/api/caller';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -9,7 +10,6 @@ const IP_LIMIT = 5;
 const IP_WINDOW_SECONDS = 600;
 const GLOBAL_LIMIT = 100;
 const GLOBAL_WINDOW_SECONDS = 3600;
-const QUEUE_KEY = 'hangs:consult:queue';
 const QUEUE_MAX = 1000;
 const IP_FALLBACK = 'unknown';
 
@@ -33,15 +33,10 @@ function json(body: object, status: number, headers: Record<string, string> = {}
 }
 
 export async function POST(request: NextRequest) {
-  const redis = await getRedis();
-  if (!redis) {
-    return json({ ok: false, error: 'SERVICE_UNAVAILABLE' }, 503);
-  }
-
+  // 1. 限流（per-IP + 全域），超限回 429 + Retry-After。
+  //    Redis 不可用 → fail-open（同登入限流），申請照常入 DB。
   const ip = clientIp(request);
   const ipKey = `hangs:consult:rl:ip:${ipHash(ip)}`;
-
-  // 1. 限流（per-IP + 全域），超限回 429 + Retry-After
   try {
     const limit = await fixedWindowLimit({
       ipKey,
@@ -51,14 +46,11 @@ export async function POST(request: NextRequest) {
       globalLimit: GLOBAL_LIMIT,
       globalWindowSeconds: GLOBAL_WINDOW_SECONDS,
     });
-    if (limit === null) {
-      return json({ ok: false, error: 'SERVICE_UNAVAILABLE' }, 503);
-    }
-    if (!limit.allowed) {
+    if (limit !== null && !limit.allowed) {
       return json({ ok: false, error: 'RATE_LIMITED' }, 429, { 'Retry-After': String(limit.retryAfter) });
     }
   } catch {
-    return json({ ok: false, error: 'SERVICE_UNAVAILABLE' }, 503);
+    // fail-open
   }
 
   // 2. 解析並驗證表單
@@ -90,10 +82,31 @@ export async function POST(request: NextRequest) {
     return json({ ok: false, error: 'INVALID_INPUT' }, 400);
   }
 
-  // 3. 排入佇列（原子 LPUSH + LTRIM 上限）
+  // 3. 建立申請（主資料流：admin 申請列表即時可見）。
+  //    經 tRPC createFromConsult 統一 Zod 驗證與 DB 寫入。
+  let applicationId: string;
+  try {
+    const caller = await createCaller();
+    const application = await caller.application.createFromConsult({
+      name,
+      company,
+      email,
+      size,
+      service,
+      message,
+    });
+    applicationId = application.id;
+  } catch (error) {
+    console.error('[consult] 建立申請失敗:', error);
+    return json({ ok: false, error: 'SERVICE_UNAVAILABLE' }, 503);
+  }
+
+  // 4. 排入佇列（best-effort：供將來 email/CRM worker 消費；
+  //    失敗唔影響申請已入 DB）
   const payload = {
     schemaVersion: 1,
     id: randomUUID(),
+    applicationId,
     receivedAt: new Date().toISOString(),
     ipHash: ipHash(ip),
     userAgent: (request.headers.get('user-agent') ?? '').slice(0, 300),
@@ -104,12 +117,14 @@ export async function POST(request: NextRequest) {
     service,
     message,
   };
-
   try {
-    await enqueueJson(QUEUE_KEY, payload, QUEUE_MAX);
-  } catch {
-    return json({ ok: false, error: 'SERVICE_UNAVAILABLE' }, 503);
+    const redis = await getRedis();
+    if (redis) {
+      await enqueueJson(CONSULT_QUEUE_KEY, payload, QUEUE_MAX);
+    }
+  } catch (error) {
+    console.error('[consult] 排入佇列失敗（申請已入 DB）:', error);
   }
 
-  return json({ ok: true, id: payload.id }, 200);
+  return json({ ok: true, id: applicationId }, 200);
 }

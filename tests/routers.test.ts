@@ -402,3 +402,59 @@ describe("case router 後台", () => {
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 });
+
+describe("application router（咨詢申請）", () => {
+  it("createFromConsult 建立無案例申請：欄位組合成 note、狀態 pending", async () => {
+    const created = await publicCaller().application.createFromConsult({
+      name: "陳大文",
+      company: "示範公司",
+      email: "chan@example.com",
+      size: "一人公司",
+      service: "AI 應用",
+      message: "想自動化報表",
+    });
+
+    expect(created.caseId).toBeNull();
+    expect(created.caseTitle).toBeNull();
+    expect(created.painPointsSnapshot).toEqual([]);
+    expect(created.status).toBe("pending");
+    expect(created.applicantName).toBe("陳大文");
+    expect(created.applicantContact).toBe("chan@example.com");
+    expect(created.note).toContain("公司／團隊：示範公司");
+    expect(created.note).toContain("團隊規模：一人公司");
+    expect(created.note).toContain("感興趣的服務：AI 應用");
+    expect(created.note).toContain("想解決的問題：想自動化報表");
+
+    // 出現在後台申請列表（caseTitle null → 前台顯示「一般咨詢」）
+    const list = await adminCaller().application.list();
+    const row = list.find((a) => a.id === created.id);
+    expect(row?.caseTitle).toBeNull();
+    expect(row?.note).toContain("示範公司");
+  });
+
+  it("createFromConsult 無效電郵被拒", async () => {
+    await expect(
+      publicCaller().application.createFromConsult({
+        name: "陳大文",
+        company: "",
+        email: "not-an-email",
+        size: "",
+        service: "",
+        message: "hi",
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("createFromConsult 空 name/message 被拒", async () => {
+    await expect(
+      publicCaller().application.createFromConsult({
+        name: "",
+        company: "",
+        email: "a@example.com",
+        size: "",
+        service: "",
+        message: "",
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+});
